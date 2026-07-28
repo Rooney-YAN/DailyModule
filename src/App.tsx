@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CalendarDays, CalendarRange, Check, ChevronLeft, ChevronRight, CirclePlus, Clock3,
-  Copy, Download, Eye, FileUp, Focus, Languages, Maximize2, Moon, Pencil, RotateCcw,
-  Settings as SettingsIcon, Sun, Trash2, X,
+  Copy, Download, Eye, FileUp, Focus, Languages, Layers3, Maximize2, Moon, Newspaper,
+  Pencil, RotateCcw, Settings as SettingsIcon, Sun, Trash2, X,
 } from 'lucide-react'
 import { addDays, addMonths, format, isSameMonth, parseISO, subMonths } from 'date-fns'
 import type { BlockTemplate, PlannerData, TimeBlock, View } from './types'
 import { createDefaultData, isPlannerData, loadData, resetData, saveData } from './lib/storage'
 import { dateLabel, duration, iso, monthDays, monthLabel, weekDays } from './lib/dates'
+import NewsPage from './components/NewsPage'
 
 const text = {
   zh: {
-    month: '月', week: '周', day: '日', now: '现在', templates: '模板', settings: '设置',
+    month: '月', week: '周', day: '日', now: '现在', news: '快报', templates: '模板', settings: '设置',
     viewMode: '阅览模式', editMode: '编辑模式', today: '今天', add: '新建模块',
     focus: '今日重点', planned: '计划时长', completed: '已完成', progress: '今日进度',
     empty: '这一天还没有安排', emptyHint: '留白也是计划的一部分。需要时再添加。',
@@ -22,7 +23,7 @@ const text = {
     local: '数据仅保存在当前浏览器', save: '已自动保存', templateHint: '点击模板，快速添加到当前选中的日期。',
   },
   en: {
-    month: 'Month', week: 'Week', day: 'Day', now: 'Now', templates: 'Templates', settings: 'Settings',
+    month: 'Month', week: 'Week', day: 'Day', now: 'Now', news: 'Brief', templates: 'Templates', settings: 'Settings',
     viewMode: 'View mode', editMode: 'Edit mode', today: 'Today', add: 'New block',
     focus: 'Today’s focus', planned: 'Planned', completed: 'Completed', progress: 'Today’s progress',
     empty: 'Nothing planned for this day', emptyHint: 'Open space is part of a good plan. Add something when you need it.',
@@ -34,9 +35,30 @@ const text = {
   },
 } as const
 
+const dailyQuotes = [
+  {
+    zh: '失去的时间，再也找不回来。',
+    en: 'Lost time is never found again.',
+    authorZh: '本杰明·富兰克林',
+    authorEn: 'Benjamin Franklin',
+  },
+  {
+    zh: '不是生命太短，而是我们浪费了太多时间。',
+    en: 'It is not that we have a short time to live, but that we waste a lot of it.',
+    authorZh: '塞涅卡',
+    authorEn: 'Seneca',
+  },
+  {
+    zh: '不要再争论一个好人应该是什么样子。去成为一个好人。',
+    en: 'Waste no more time arguing what a good person should be. Be one.',
+    authorZh: '马可·奥勒留',
+    authorEn: 'Marcus Aurelius',
+  },
+] as const
+
 const nav: Array<[View, typeof CalendarDays]> = [
   ['month', CalendarDays], ['week', CalendarRange], ['day', CalendarDays],
-  ['now', Focus], ['templates', Copy], ['settings', SettingsIcon],
+  ['now', Focus], ['news', Newspaper], ['templates', Copy], ['settings', SettingsIcon],
 ]
 
 const timeToMinutes = (time: string) => {
@@ -109,7 +131,7 @@ export default function App() {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
-    link.href = url; link.download = `summer-planner-${iso(new Date())}.json`; link.click()
+    link.href = url; link.download = `daily-module-${iso(new Date())}.json`; link.click()
     URL.revokeObjectURL(url)
   }
   const importData = async (file?: File) => {
@@ -129,7 +151,7 @@ export default function App() {
 
   return <div className="app-shell">
     <aside className="sidebar">
-      <button className="brand" onClick={() => setView('now')}><span className="brand-mark"><Sun /></span><span><b>夏日计划</b><small>Summer Planner</small></span></button>
+      <button className="brand" onClick={() => setView('now')}><span className="brand-mark"><Layers3 /></span><span><b>DailyModule</b><small>Plan · Focus · Finish</small></span></button>
       <nav>{nav.map(([key, Icon]) => <button key={key} className={view === key ? 'active' : ''} onClick={() => setView(key)}><Icon /><span>{t[key]}</span></button>)}</nav>
       <div className="sidebar-foot"><span className="save-dot" />{t.save}</div>
     </aside>
@@ -153,12 +175,13 @@ export default function App() {
         {view === 'now' && <NowView {...{ data, selectedDate, language, t, updateBlock }} />}
         {view === 'week' && <WeekView {...{ data, selectedDate, language, t, conflicts, setSelectedDate, setView }} />}
         {view === 'month' && <MonthView {...{ data, selectedDate, language, conflicts, setSelectedDate, setView }} />}
+        {view === 'news' && <NewsPage language={language} />}
         {view === 'templates' && <TemplatesView data={data} language={language} t={t} addFromTemplate={addFromTemplate} />}
         {view === 'settings' && <SettingsView {...{ data, setData, t, exportData, importRef, restore }} />}
       </div>
     </main>
 
-    {editMode && !['templates', 'settings'].includes(view) && <button className="floating-add" onClick={() => setModal({ open: true })}><CirclePlus />{t.add}</button>}
+    {editMode && !['news', 'templates', 'settings'].includes(view) && <button className="floating-add" onClick={() => setModal({ open: true })}><CirclePlus />{t.add}</button>}
     <input ref={importRef} type="file" accept=".json,application/json" hidden onChange={event => { void importData(event.target.files?.[0]); event.target.value = '' }} />
     <BlockModal open={modal.open} block={modal.block} date={selectedDate} data={data} language={language} onClose={() => setModal({ open: false })} onSave={saveBlock} />
     {notice && <div className="toast">{notice}</div>}
@@ -180,9 +203,10 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
   const core = blocks.filter(block => !block.isBuffer && data.categories.find(category => category.id === block.categoryId)?.countsTowardCompletion)
   const completed = core.filter(block => block.status === 'completed').length
   const minutes = blocks.reduce((sum, block) => sum + duration(block.startTime, block.endTime), 0)
+  const quote = dailyQuotes[Math.abs(Number(selectedDate.replaceAll('-', ''))) % dailyQuotes.length]
   return <>
     <section className="hero-row">
-      <div><span className="eyebrow">{dateLabel(selectedDate, language)}</span><h1>{language === 'zh' ? '把今天过得清楚一点。' : 'Make today feel clear.'}</h1><p>{language === 'zh' ? '专注当下，也为变化留一点空间。' : 'Focus on what matters, with room for change.'}</p></div>
+      <div className="daily-quote"><span className="eyebrow">{dateLabel(selectedDate, language)}</span><blockquote>“{language === 'zh' ? quote.zh : quote.en}”</blockquote><cite>— {language === 'zh' ? quote.authorZh : quote.authorEn}</cite></div>
       <div className="summary-card"><div><span>{t.planned}</span><strong>{Math.floor(minutes / 60)}h {minutes % 60}m</strong></div><div><span>{t.progress}</span><strong>{core.length ? Math.round(completed / core.length * 100) : 0}%</strong></div></div>
     </section>
     <section className="focus-strip"><div><span className="eyebrow">{t.focus}</span><div className="focus-items">{blocks.filter(block => block.priority === 'high').slice(0, 3).map(block => <span key={block.id}><i style={{ background: block.color }} />{language === 'en' && block.titleEn ? block.titleEn : block.title}</span>)}</div></div><div className="progress-ring" style={{ '--progress': `${core.length ? completed / core.length * 360 : 0}deg` } as React.CSSProperties}><span>{completed}/{core.length}</span></div></section>
@@ -304,7 +328,7 @@ function BlockModal({ open, block, date, data, language, onClose, onSave }: { op
       <div className="form-row"><label>{language === 'zh' ? '日期' : 'Date'}<input type="date" value={form.date ?? date} onChange={event => patch({ date: event.target.value })} /></label><label>{language === 'zh' ? '分类' : 'Category'}<select value={form.categoryId} onChange={event => patch({ categoryId: event.target.value })}>{data.categories.map(item => <option key={item.id} value={item.id}>{language === 'en' ? item.nameEn : item.name}</option>)}</select></label></div>
       <div className="form-row"><label>{language === 'zh' ? '开始' : 'Start'}<input type="time" value={form.startTime ?? ''} onChange={event => patch({ startTime: event.target.value })} /></label><label>{language === 'zh' ? '结束' : 'End'}<input type="time" value={form.endTime ?? ''} onChange={event => patch({ endTime: event.target.value })} /></label></div>
       <label>{language === 'zh' ? '备注' : 'Note'}<textarea rows={3} value={form.note ?? ''} onChange={event => patch({ note: event.target.value })} /></label>
-      <div className="form-row"><label>{language === 'zh' ? '优先级' : 'Priority'}<select value={form.priority} onChange={event => patch({ priority: event.target.value as TimeBlock['priority'] })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label><label className="check-label"><input type="checkbox" checked={!!form.isBuffer} onChange={event => patch({ isBuffer: event.target.checked })} />{language === 'zh' ? '缓冲时间' : 'Buffer time'}</label></div>
+      <label>{language === 'zh' ? '优先级' : 'Priority'}<select value={form.priority} onChange={event => patch({ priority: event.target.value as TimeBlock['priority'] })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
       {form.startTime && form.endTime && form.endTime <= form.startTime && <p className="form-error">{language === 'zh' ? '结束时间必须晚于开始时间。' : 'End time must be later than start time.'}</p>}
       <footer><button type="button" className="secondary" onClick={onClose}>{language === 'zh' ? '取消' : 'Cancel'}</button><button className="primary" type="submit">{language === 'zh' ? '保存模块' : 'Save block'}</button></footer>
     </form>

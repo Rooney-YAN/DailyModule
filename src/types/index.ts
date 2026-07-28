@@ -1,4 +1,4 @@
-export type View = 'month' | 'week' | 'day' | 'now' | 'templates' | 'settings'
+export type View = 'month' | 'week' | 'day' | 'now' | 'news' | 'templates' | 'settings'
 export type Language = 'zh' | 'en'
 export type Theme = 'system' | 'light' | 'dark'
 export type Status = 'pending' | 'completed' | 'skipped' | 'conflict'

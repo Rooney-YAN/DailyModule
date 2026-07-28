@@ -1,11 +1,12 @@
 {
-  "name": "summer-planner",
+  "name": "daily-module",
   "private": true,
   "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "news:generate": "node scripts/generate-news.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
