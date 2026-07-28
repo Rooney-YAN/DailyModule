@@ -58,7 +58,7 @@ const dailyQuotes = [
 
 const nav: Array<[View, typeof CalendarDays]> = [
   ['month', CalendarDays], ['week', CalendarRange], ['day', CalendarDays],
-  ['now', Focus], ['news', Newspaper], ['templates', Copy], ['settings', SettingsIcon],
+  ['now', Focus], ['templates', Copy], ['news', Newspaper], ['settings', SettingsIcon],
 ]
 
 const timeToMinutes = (time: string) => {
@@ -310,6 +310,75 @@ function BlockCard({ block, language, editMode, conflict, onDone, onSkip, onEdit
   </article>
 }
 
+const timeFromMinutes = (minutes: number) => {
+  const safeMinutes = Math.max(0, Math.min(24 * 60, minutes))
+  const hours = Math.floor(safeMinutes / 60)
+  const remainder = safeMinutes % 60
+  return `${String(hours).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
+}
+
+function TimeRangePicker({ startTime, endTime, language, onChange }: {
+  startTime: string
+  endTime: string
+  language: 'zh' | 'en'
+  onChange: (startTime: string, endTime: string) => void
+}) {
+  const min = 0
+  const max = 24 * 60
+  const step = 15
+  const start = Math.min(timeToMinutes(startTime), max - step)
+  const end = Math.max(Math.min(timeToMinutes(endTime), max), start + step)
+  const startPercent = start / max * 100
+  const endPercent = end / max * 100
+  const totalMinutes = end - start
+  const durationLabel = language === 'zh'
+    ? `${Math.floor(totalMinutes / 60)} 小时 ${totalMinutes % 60} 分钟`
+    : `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`
+
+  return <section className="time-picker" aria-label={language === 'zh' ? '时间范围' : 'Time range'}>
+    <div className="time-picker-head">
+      <div><Clock3 /><span>{language === 'zh' ? '时间范围' : 'Time range'}</span></div>
+      <span className="time-duration">{durationLabel}</span>
+    </div>
+    <div className="time-values" aria-live="polite">
+      <div className="time-value"><span>{language === 'zh' ? '开始' : 'Start'}</span><strong>{timeFromMinutes(start)}</strong></div>
+      <span className="time-value-arrow">→</span>
+      <div className="time-value"><span>{language === 'zh' ? '结束' : 'End'}</span><strong>{timeFromMinutes(end)}</strong></div>
+    </div>
+    <div className="time-range" style={{ '--start': `${startPercent}%`, '--end': `${endPercent}%` } as React.CSSProperties}>
+      <div className="time-track" />
+      <input
+        type="range"
+        min={min}
+        max={max - step}
+        step={step}
+        value={start}
+        aria-label={language === 'zh' ? '拖动设置开始时间' : 'Drag to set start time'}
+        aria-valuetext={timeFromMinutes(start)}
+        onChange={event => {
+          const nextStart = Math.min(Number(event.target.value), end - step)
+          onChange(timeFromMinutes(nextStart), timeFromMinutes(end))
+        }}
+      />
+      <input
+        type="range"
+        min={step}
+        max={max}
+        step={step}
+        value={end}
+        aria-label={language === 'zh' ? '拖动设置结束时间' : 'Drag to set end time'}
+        aria-valuetext={timeFromMinutes(end)}
+        onChange={event => {
+          const nextEnd = Math.max(Number(event.target.value), start + step)
+          onChange(timeFromMinutes(start), timeFromMinutes(nextEnd))
+        }}
+      />
+    </div>
+    <div className="time-ticks" aria-hidden="true"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
+    <p className="time-picker-hint">{language === 'zh' ? '拖动两个圆点调整时间，每次 15 分钟。' : 'Drag either handle to adjust in 15-minute steps.'}</p>
+  </section>
+}
+
 function BlockModal({ open, block, date, data, language, onClose, onSave }: { open: boolean; block?: TimeBlock; date: string; data: PlannerData; language: 'zh' | 'en'; onClose: () => void; onSave: (block: TimeBlock) => void }) {
   const [form, setForm] = useState<Partial<TimeBlock>>({})
   useEffect(() => setForm(block ?? { date, startTime: '09:00', endTime: '10:00', categoryId: 'study', priority: 'medium', status: 'pending', isFixed: false, canMove: true, canSplit: true, canBeOverridden: true, isBuffer: false }), [open, block, date])
@@ -326,7 +395,7 @@ function BlockModal({ open, block, date, data, language, onClose, onSave }: { op
     <form className="modal" onSubmit={submit}><header><div><span className="eyebrow">{block ? (language === 'zh' ? '编辑时间模块' : 'Edit time block') : (language === 'zh' ? '新建时间模块' : 'New time block')}</span><h2>{language === 'zh' ? '安排一段专注时间' : 'Plan a focused block'}</h2></div><button type="button" className="ghost icon" onClick={onClose}><X /></button></header>
       <label>{language === 'zh' ? '名称' : 'Title'}<input autoFocus value={form.title ?? ''} onChange={event => patch({ title: event.target.value })} required /></label>
       <div className="form-row"><label>{language === 'zh' ? '日期' : 'Date'}<input type="date" value={form.date ?? date} onChange={event => patch({ date: event.target.value })} /></label><label>{language === 'zh' ? '分类' : 'Category'}<select value={form.categoryId} onChange={event => patch({ categoryId: event.target.value })}>{data.categories.map(item => <option key={item.id} value={item.id}>{language === 'en' ? item.nameEn : item.name}</option>)}</select></label></div>
-      <div className="form-row"><label>{language === 'zh' ? '开始' : 'Start'}<input type="time" value={form.startTime ?? ''} onChange={event => patch({ startTime: event.target.value })} /></label><label>{language === 'zh' ? '结束' : 'End'}<input type="time" value={form.endTime ?? ''} onChange={event => patch({ endTime: event.target.value })} /></label></div>
+      <TimeRangePicker startTime={form.startTime ?? '09:00'} endTime={form.endTime ?? '10:00'} language={language} onChange={(startTime, endTime) => patch({ startTime, endTime })} />
       <label>{language === 'zh' ? '备注' : 'Note'}<textarea rows={3} value={form.note ?? ''} onChange={event => patch({ note: event.target.value })} /></label>
       <label>{language === 'zh' ? '优先级' : 'Priority'}<select value={form.priority} onChange={event => patch({ priority: event.target.value as TimeBlock['priority'] })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
       {form.startTime && form.endTime && form.endTime <= form.startTime && <p className="form-error">{language === 'zh' ? '结束时间必须晚于开始时间。' : 'End time must be later than start time.'}</p>}
