@@ -14,34 +14,33 @@ const categories: Category[] = [
   { id: 'rest', name: '休息', nameEn: 'Rest', color: '#49a9bd', countsTowardCompletion: false },
 ]
 
-const templateSeed: Array<[string, string, string, number, string, string, boolean]> = [
-  ['健身', 'Workout', '🏃', 60, 'health', '#39a876', false],
-  ['AI 项目', 'AI Project', '✦', 120, 'study', '#5b7cfa', false],
-  ['IELTS 词汇', 'IELTS Vocabulary', 'Aa', 45, 'study', '#6c87ee', false],
-  ['IELTS 口语', 'IELTS Speaking', '◌', 45, 'study', '#7489df', false],
-  ['视频素材筛选', 'Footage Review', '▣', 60, 'creative', '#9c72d5', false],
-  ['视频剪辑', 'Video Editing', '▶', 120, 'creative', '#a36be0', false],
-  ['做午饭', 'Cook Lunch', '♨', 45, 'life', '#ee9b4c', false],
-  ['做晚饭', 'Cook Dinner', '♨', 45, 'life', '#e78d43', false],
-  ['午饭', 'Lunch', '◐', 45, 'life', '#eba25c', false],
-  ['晚饭', 'Dinner', '◑', 45, 'life', '#e49351', false],
-  ['Valorant', 'Valorant', '◆', 90, 'rest', '#49a9bd', false],
-  ['社交与外出', 'Social', '☺', 120, 'social', '#e86e8e', false],
-  ['自由时间', 'Free Time', '○', 60, 'rest', '#63adbd', false],
-  ['缓冲时间', 'Buffer Time', '≈', 30, 'rest', '#93a8b0', true],
-  ['睡觉', 'Sleep', '☾', 480, 'rest', '#60739a', false],
-  ['起床和晨间准备', 'Morning Routine', '☀', 45, 'life', '#e6aa4c', false],
+const templateSeed: Array<[string, string, string, number, string, string]> = [
+  ['健身', 'Workout', '🏃', 60, 'health', '#39a876'],
+  ['AI 项目', 'AI Project', '✦', 120, 'study', '#5b7cfa'],
+  ['IELTS 词汇', 'IELTS Vocabulary', 'Aa', 45, 'study', '#6c87ee'],
+  ['IELTS 口语', 'IELTS Speaking', '◌', 45, 'study', '#7489df'],
+  ['视频素材筛选', 'Footage Review', '▣', 60, 'creative', '#9c72d5'],
+  ['视频剪辑', 'Video Editing', '▶', 120, 'creative', '#a36be0'],
+  ['做午饭', 'Cook Lunch', '♨', 45, 'life', '#ee9b4c'],
+  ['做晚饭', 'Cook Dinner', '♨', 45, 'life', '#e78d43'],
+  ['午饭', 'Lunch', '◐', 45, 'life', '#eba25c'],
+  ['晚饭', 'Dinner', '◑', 45, 'life', '#e49351'],
+  ['Valorant', 'Valorant', '◆', 90, 'rest', '#49a9bd'],
+  ['社交与外出', 'Social', '☺', 120, 'social', '#e86e8e'],
+  ['自由时间', 'Free Time', '○', 60, 'rest', '#63adbd'],
+  ['睡觉', 'Sleep', '☾', 480, 'rest', '#60739a'],
+  ['起床和晨间准备', 'Morning Routine', '☀', 45, 'life', '#e6aa4c'],
 ]
 
 const blockTemplates: BlockTemplate[] = templateSeed.map((t, i) => ({
   id: `tpl-${i + 1}`, title: t[0], titleEn: t[1], icon: t[2], durationMinutes: t[3],
-  categoryId: t[4], color: t[5], isBuffer: t[6], priority: i === 1 ? 'high' : 'medium',
-  isFixed: false, canMove: true, canSplit: !t[6], canBeOverridden: true, isBuiltIn: true, isHidden: false,
+  categoryId: t[4], color: t[5], priority: i === 1 ? 'high' : 'medium',
+  isFixed: false, canMove: true, canSplit: true, canBeOverridden: true, isBuiltIn: true, isHidden: false,
 }))
 
-function makeBlock(id: string, title: string, titleEn: string, date: string, startTime: string, endTime: string, categoryId: string, color: string, priority: 'low' | 'medium' | 'high' = 'medium', status: TimeBlock['status'] = 'pending', isBuffer = false): TimeBlock {
+function makeBlock(id: string, title: string, titleEn: string, date: string, startTime: string, endTime: string, categoryId: string, color: string, priority: 'low' | 'medium' | 'high' = 'medium', status: TimeBlock['status'] = 'pending'): TimeBlock {
   const timestamp = new Date().toISOString()
-  return { id, title, titleEn, date, startTime, endTime, categoryId, color, priority, status, isBuffer, isFixed: false, canMove: true, canSplit: true, canBeOverridden: true, createdAt: timestamp, updatedAt: timestamp }
+  return { id, title, titleEn, date, startTime, endTime, categoryId, color, priority, status, isFixed: false, canMove: true, canSplit: true, canBeOverridden: true, createdAt: timestamp, updatedAt: timestamp }
 }
 
 export function createDefaultData(): PlannerData {
@@ -55,7 +54,6 @@ export function createDefaultData(): PlannerData {
       makeBlock('demo-2', 'IELTS 词汇', 'IELTS vocabulary', today, '09:30', '10:15', 'study', '#6c87ee', 'high'),
       makeBlock('demo-3', 'AI 项目', 'AI project', today, '10:30', '12:00', 'study', '#5b7cfa', 'high'),
       makeBlock('demo-4', '做午饭', 'Cook lunch', today, '12:00', '12:45', 'life', '#ee9b4c'),
-      makeBlock('demo-5', '缓冲时间', 'Buffer time', today, '15:00', '15:30', 'rest', '#93a8b0', 'low', 'pending', true),
       makeBlock('demo-6', '视频剪辑', 'Video editing', today, '15:30', '17:30', 'creative', '#a36be0'),
       makeBlock('demo-7', 'IELTS 口语', 'IELTS speaking', day(1), '09:00', '10:00', 'study', '#7489df'),
       makeBlock('demo-8', '朋友聚餐', 'Dinner with friends', day(2), '18:30', '21:00', 'social', '#e86e8e'),
@@ -82,7 +80,22 @@ export function loadData(): PlannerData {
     const stored = localStorage.getItem(KEY)
     if (!stored) return createDefaultData()
     const parsed: unknown = JSON.parse(stored)
-    return isPlannerData(parsed) ? parsed : createDefaultData()
+    if (!isPlannerData(parsed)) return createDefaultData()
+    const isLegacyBuffer = (item: { title: string; titleEn?: string }) => {
+      const legacy = item as typeof item & { isBuffer?: boolean }
+      return legacy.isBuffer === true || item.title === '缓冲时间' || item.titleEn === 'Buffer Time' || item.titleEn === 'Buffer time'
+    }
+    return {
+      ...parsed,
+      blockTemplates: parsed.blockTemplates.filter(template => !isLegacyBuffer(template)).map(template => {
+        const { isBuffer: _legacyBuffer, ...clean } = template as BlockTemplate & { isBuffer?: boolean }
+        return clean
+      }),
+      timeBlocks: parsed.timeBlocks.filter(block => !isLegacyBuffer(block)).map(block => {
+        const { isBuffer: _legacyBuffer, ...clean } = block as TimeBlock & { isBuffer?: boolean }
+        return clean
+      }),
+    }
   } catch {
     return createDefaultData()
   }

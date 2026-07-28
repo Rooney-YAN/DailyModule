@@ -29,7 +29,6 @@ export type TimeBlock = {
   canMove: boolean
   canSplit: boolean
   canBeOverridden: boolean
-  isBuffer: boolean
   templateId?: string
   createdAt: string
   updatedAt: string
@@ -48,7 +47,6 @@ export type BlockTemplate = {
   canMove: boolean
   canSplit: boolean
   canBeOverridden: boolean
-  isBuffer: boolean
   isBuiltIn: boolean
   isHidden: boolean
 }

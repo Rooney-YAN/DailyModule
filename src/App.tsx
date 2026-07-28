@@ -36,24 +36,38 @@ const text = {
 } as const
 
 const dailyQuotes = [
-  {
-    zh: '失去的时间，再也找不回来。',
-    en: 'Lost time is never found again.',
-    authorZh: '本杰明·富兰克林',
-    authorEn: 'Benjamin Franklin',
-  },
-  {
-    zh: '不是生命太短，而是我们浪费了太多时间。',
-    en: 'It is not that we have a short time to live, but that we waste a lot of it.',
-    authorZh: '塞涅卡',
-    authorEn: 'Seneca',
-  },
-  {
-    zh: '不要再争论一个好人应该是什么样子。去成为一个好人。',
-    en: 'Waste no more time arguing what a good person should be. Be one.',
-    authorZh: '马可·奥勒留',
-    authorEn: 'Marcus Aurelius',
-  },
+  { zh: '失去的时间，再也找不回来。', en: 'Lost time is never found again.', authorZh: '本杰明·富兰克林', authorEn: 'Benjamin Franklin' },
+  { zh: '不要挥霍时间，因为时间是构成生命的材料。', en: 'Do not squander time, for that is the stuff life is made of.', authorZh: '本杰明·富兰克林', authorEn: 'Benjamin Franklin' },
+  { zh: '今日能做之事，切勿留到明日。', en: 'Never leave that till tomorrow which you can do today.', authorZh: '本杰明·富兰克林', authorEn: 'Benjamin Franklin' },
+  { zh: '勤奋是好运之母。', en: 'Diligence is the mother of good luck.', authorZh: '本杰明·富兰克林', authorEn: 'Benjamin Franklin' },
+  { zh: '不是生命太短，而是我们浪费了太多时间。', en: 'It is not that we have a short time to live, but that we waste much of it.', authorZh: '塞涅卡', authorEn: 'Seneca' },
+  { zh: '我们常常不是时间太少，而是失去得太多。', en: 'We do not have too little time; we lose much of it.', authorZh: '塞涅卡', authorEn: 'Seneca' },
+  { zh: '当我们一再拖延，生命便匆匆而过。', en: 'While we postpone, life speeds by.', authorZh: '塞涅卡', authorEn: 'Seneca' },
+  { zh: '没有目的地的人，不会有顺风。', en: 'No wind is favorable to one who does not know the harbor.', authorZh: '塞涅卡', authorEn: 'Seneca' },
+  { zh: '不要再争论一个好人应该是什么样子。去成为一个好人。', en: 'Waste no more time arguing what a good person should be. Be one.', authorZh: '马可·奥勒留', authorEn: 'Marcus Aurelius' },
+  { zh: '只要做眼前之事，并且把它做好。', en: 'Do what is before you, and do it well.', authorZh: '马可·奥勒留', authorEn: 'Marcus Aurelius' },
+  { zh: '行动的障碍，反而能推动行动。', en: 'The impediment to action advances action.', authorZh: '马可·奥勒留', authorEn: 'Marcus Aurelius' },
+  { zh: '你思想的品质，决定你生活的品质。', en: 'The happiness of your life depends upon the quality of your thoughts.', authorZh: '马可·奥勒留', authorEn: 'Marcus Aurelius' },
+  { zh: '最好的报复，就是不成为伤害你的人。', en: 'The best revenge is not to be like your enemy.', authorZh: '马可·奥勒留', authorEn: 'Marcus Aurelius' },
+  { zh: '先决定你想成为什么样的人，然后去做该做的事。', en: 'First say to yourself what you would be; then do what you have to do.', authorZh: '爱比克泰德', authorEn: 'Epictetus' },
+  { zh: '不能主宰自己的人，不可能自由。', en: 'No man is free who is not master of himself.', authorZh: '爱比克泰德', authorEn: 'Epictetus' },
+  { zh: '学而时习之，不亦说乎。', en: 'To learn and practice what is learned—is that not a joy?', authorZh: '孔子', authorEn: 'Confucius' },
+  { zh: '温故而知新，可以为师矣。', en: 'Review the old and discover the new; then you may teach.', authorZh: '孔子', authorEn: 'Confucius' },
+  { zh: '学而不思则罔，思而不学则殆。', en: 'Learning without thought is labor lost; thought without learning is perilous.', authorZh: '孔子', authorEn: 'Confucius' },
+  { zh: '知之为知之，不知为不知，是知也。', en: 'To know what you know and what you do not know—that is knowledge.', authorZh: '孔子', authorEn: 'Confucius' },
+  { zh: '三人行，必有我师焉。', en: 'When walking with others, I can always learn from someone.', authorZh: '孔子', authorEn: 'Confucius' },
+  { zh: '见贤思齐焉，见不贤而内自省也。', en: 'See the worthy and strive to equal them; see faults and examine yourself.', authorZh: '孔子', authorEn: 'Confucius' },
+  { zh: '君子欲讷于言而敏于行。', en: 'The exemplary person is modest in speech and quick in action.', authorZh: '孔子', authorEn: 'Confucius' },
+  { zh: '工欲善其事，必先利其器。', en: 'To do good work, one must first sharpen the tools.', authorZh: '孔子', authorEn: 'Confucius' },
+  { zh: '欲速则不达。', en: 'Haste prevents achievement.', authorZh: '孔子', authorEn: 'Confucius' },
+  { zh: '人无远虑，必有近忧。', en: 'Without long-term thought, trouble will soon be near.', authorZh: '孔子', authorEn: 'Confucius' },
+  { zh: '逝者如斯夫，不舍昼夜。', en: 'Time passes like this river, never ceasing day or night.', authorZh: '孔子', authorEn: 'Confucius' },
+  { zh: '岁寒，然后知松柏之后凋也。', en: 'Only in winter do we know the pine and cypress remain steadfast.', authorZh: '孔子', authorEn: 'Confucius' },
+  { zh: '千里之行，始于足下。', en: 'A journey of a thousand miles begins beneath one’s feet.', authorZh: '老子', authorEn: 'Laozi' },
+  { zh: '合抱之木，生于毫末。', en: 'A tree too large to embrace grows from a tiny shoot.', authorZh: '老子', authorEn: 'Laozi' },
+  { zh: '知人者智，自知者明。', en: 'Knowing others is intelligence; knowing yourself is true clarity.', authorZh: '老子', authorEn: 'Laozi' },
+  { zh: '胜人者有力，自胜者强。', en: 'Mastering others takes strength; mastering yourself takes true power.', authorZh: '老子', authorEn: 'Laozi' },
+  { zh: '慎终如始，则无败事。', en: 'Attend to the end as carefully as the beginning, and the work will not fail.', authorZh: '老子', authorEn: 'Laozi' },
 ] as const
 
 const nav: Array<[View, typeof CalendarDays]> = [
@@ -74,6 +88,12 @@ const timeFromMinutes = (minutes: number) => {
 }
 
 const snapMinutes = (minutes: number) => Math.round(minutes / 15) * 15
+
+const formatDuration = (minutes: number) => {
+  const hours = Math.floor(minutes / 60)
+  const remainder = minutes % 60
+  return remainder === 0 ? `${hours}h` : `${hours}h${remainder}min`
+}
 
 function findAvailableStart(desired: number, blockDuration: number, blocks: TimeBlock[], dayStart: number, dayEnd: number, ignoreId?: string) {
   const latestStart = dayEnd - blockDuration
@@ -110,7 +130,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState(iso(new Date()))
   const [editMode, setEditMode] = useState(false)
   const [modal, setModal] = useState<{ open: boolean; block?: TimeBlock }>({ open: false })
-  const [moduleModalOpen, setModuleModalOpen] = useState(false)
+  const [moduleModal, setModuleModal] = useState<{ open: boolean; template?: BlockTemplate }>({ open: false })
   const [notice, setNotice] = useState('')
   const importRef = useRef<HTMLInputElement>(null)
   const language = data.settings.language
@@ -138,8 +158,8 @@ export default function App() {
     setModal({ open: false })
   }
   const addFromTemplate = (template: BlockTemplate, requestedStart?: string) => {
-    const dayStart = timeToMinutes(data.settings.defaultDayStart)
-    const dayEnd = timeToMinutes(data.settings.defaultDayEnd)
+    const dayStart = 0
+    const dayEnd = 24 * 60
     const dayBlocks = data.timeBlocks.filter(block => block.date === selectedDate)
     const startMinutes = findAvailableStart(requestedStart ? timeToMinutes(requestedStart) : dayStart, template.durationMinutes, dayBlocks, dayStart, dayEnd)
     if (startMinutes === null) {
@@ -154,7 +174,7 @@ export default function App() {
       id: crypto.randomUUID(), title: template.title, titleEn: template.titleEn, date: selectedDate, startTime: start, endTime: end,
       categoryId: template.categoryId, color: template.color, icon: template.icon, priority: template.priority, status: 'pending',
       isFixed: template.isFixed, canMove: template.canMove, canSplit: template.canSplit, canBeOverridden: template.canBeOverridden,
-      isBuffer: template.isBuffer, templateId: template.id, createdAt: now, updatedAt: now,
+      templateId: template.id, createdAt: now, updatedAt: now,
     })
     setNotice(language === 'zh' ? `已添加“${template.title}”` : `Added “${template.titleEn}”`)
     window.setTimeout(() => setNotice(''), 1800)
@@ -162,14 +182,18 @@ export default function App() {
   const saveTemplate = (value: { title: string; durationMinutes: number; categoryId: string }) => {
     const category = data.categories.find(item => item.id === value.categoryId) ?? data.categories[0]
     const template: BlockTemplate = {
-      id: crypto.randomUUID(), title: value.title, titleEn: value.title, durationMinutes: value.durationMinutes,
-      categoryId: category.id, color: category.color, icon: '◆', priority: 'medium', isFixed: false,
-      canMove: true, canSplit: true, canBeOverridden: true, isBuffer: false, isBuiltIn: false, isHidden: false,
+      id: moduleModal.template?.id ?? crypto.randomUUID(), title: value.title, titleEn: moduleModal.template?.titleEn ?? value.title, durationMinutes: value.durationMinutes,
+      categoryId: category.id, color: category.color, icon: moduleModal.template?.icon ?? '◆', priority: moduleModal.template?.priority ?? 'medium', isFixed: moduleModal.template?.isFixed ?? false,
+      canMove: moduleModal.template?.canMove ?? true, canSplit: moduleModal.template?.canSplit ?? true, canBeOverridden: moduleModal.template?.canBeOverridden ?? true, isBuiltIn: moduleModal.template?.isBuiltIn ?? false, isHidden: false,
     }
-    setData(current => ({ ...current, blockTemplates: [...current.blockTemplates, template] }))
-    setModuleModalOpen(false)
-    setNotice(language === 'zh' ? `“${value.title}”已加入模块库` : `“${value.title}” added to the module library`)
+    setData(current => ({ ...current, blockTemplates: current.blockTemplates.some(item => item.id === template.id) ? current.blockTemplates.map(item => item.id === template.id ? template : item) : [...current.blockTemplates, template] }))
+    setModuleModal({ open: false })
+    setNotice(language === 'zh' ? `“${value.title}”已保存` : `“${value.title}” saved`)
     window.setTimeout(() => setNotice(''), 1800)
+  }
+  const removeTemplate = (template: BlockTemplate) => {
+    if (!window.confirm(language === 'zh' ? `从模块库删除“${template.title}”？已安排的日程不会受影响。` : `Delete “${template.titleEn}” from the library? Scheduled items will remain.`)) return
+    setData(current => ({ ...current, blockTemplates: current.blockTemplates.filter(item => item.id !== template.id) }))
   }
 
   const exportData = () => {
@@ -216,7 +240,7 @@ export default function App() {
       </header>
 
       <div className="page">
-        {view === 'day' && <DayView {...{ data, selectedDate, language, t, editMode, conflicts, updateBlock, removeBlock, setModal, addFromTemplate }} onNewTemplate={() => setModuleModalOpen(true)} />}
+        {view === 'day' && <DayView {...{ data, selectedDate, language, t, editMode, conflicts, updateBlock, removeBlock, setModal, addFromTemplate, removeTemplate }} onNewTemplate={() => setModuleModal({ open: true })} onEditTemplate={template => setModuleModal({ open: true, template })} />}
         {view === 'now' && <NowView {...{ data, selectedDate, language, t, updateBlock }} />}
         {view === 'week' && <WeekView {...{ data, selectedDate, language, t, conflicts, setSelectedDate, setView }} />}
         {view === 'month' && <MonthView {...{ data, selectedDate, language, conflicts, setSelectedDate, setView }} />}
@@ -225,10 +249,10 @@ export default function App() {
       </div>
     </main>
 
-    {editMode && !['news', 'settings'].includes(view) && <button className="floating-add" onClick={() => view === 'day' ? setModuleModalOpen(true) : setModal({ open: true })}><CirclePlus />{t.add}</button>}
+    {editMode && !['news', 'settings'].includes(view) && <button className="floating-add" onClick={() => view === 'day' ? setModuleModal({ open: true }) : setModal({ open: true })}><CirclePlus />{t.add}</button>}
     <input ref={importRef} type="file" accept=".json,application/json" hidden onChange={event => { void importData(event.target.files?.[0]); event.target.value = '' }} />
     <BlockModal open={modal.open} block={modal.block} date={selectedDate} data={data} language={language} onClose={() => setModal({ open: false })} onSave={saveBlock} />
-    <ModuleModal open={moduleModalOpen} data={data} language={language} onClose={() => setModuleModalOpen(false)} onSave={saveTemplate} />
+    <ModuleModal open={moduleModal.open} template={moduleModal.template} data={data} language={language} onClose={() => setModuleModal({ open: false })} onSave={saveTemplate} />
     {notice && <div className="toast">{notice}</div>}
   </div>
 }
@@ -240,25 +264,25 @@ type SharedProps = {
   t: typeof text.zh | typeof text.en
 }
 
-function DayView({ data, selectedDate, language, t, editMode, conflicts, updateBlock, removeBlock, setModal, addFromTemplate, onNewTemplate }: SharedProps & {
+function DayView({ data, selectedDate, language, t, editMode, conflicts, updateBlock, removeBlock, setModal, addFromTemplate, onNewTemplate, onEditTemplate, removeTemplate }: SharedProps & {
   editMode: boolean; conflicts: Set<string>; updateBlock: (id: string, patch: Partial<TimeBlock>) => void
   removeBlock: (id: string) => void; setModal: (value: { open: boolean; block?: TimeBlock }) => void
   addFromTemplate: (template: BlockTemplate, requestedStart?: string) => void
   onNewTemplate: () => void
+  onEditTemplate: (template: BlockTemplate) => void
+  removeTemplate: (template: BlockTemplate) => void
 }) {
   const [armedTemplateId, setArmedTemplateId] = useState<string>()
   const [dragPreview, setDragPreview] = useState<{ start: number; duration: number }>()
   const [draggingPayload, setDraggingPayload] = useState<{ type: 'template' | 'block'; id: string }>()
   const blocks = data.timeBlocks.filter(block => block.date === selectedDate).sort((a, b) => a.startTime.localeCompare(b.startTime))
-  const core = blocks.filter(block => !block.isBuffer && data.categories.find(category => category.id === block.categoryId)?.countsTowardCompletion)
+  const core = blocks.filter(block => data.categories.find(category => category.id === block.categoryId)?.countsTowardCompletion)
   const completed = core.filter(block => block.status === 'completed').length
   const minutes = blocks.reduce((sum, block) => sum + duration(block.startTime, block.endTime), 0)
   const quote = dailyQuotes[Math.abs(Number(selectedDate.replaceAll('-', ''))) % dailyQuotes.length]
   const templates = data.blockTemplates.filter(template => !template.isHidden)
-  const configuredStart = timeToMinutes(data.settings.defaultDayStart)
-  const configuredEnd = timeToMinutes(data.settings.defaultDayEnd)
-  const timelineStart = Math.max(0, Math.floor(Math.min(configuredStart, ...blocks.map(block => timeToMinutes(block.startTime))) / 60) * 60)
-  const timelineEnd = Math.min(24 * 60, Math.ceil(Math.max(configuredEnd, ...blocks.map(block => timeToMinutes(block.endTime))) / 60) * 60)
+  const timelineStart = 0
+  const timelineEnd = 24 * 60
   const hourHeight = 72
   const timelineHeight = (timelineEnd - timelineStart) / 60 * hourHeight
   const hours = Array.from({ length: (timelineEnd - timelineStart) / 60 + 1 }, (_, index) => timelineStart + index * 60)
@@ -300,8 +324,7 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
     <div className="day-builder">
       <aside className="module-dock">
         <div className="module-dock-head"><div><span className="eyebrow">{t.templates}</span><h3>{language === 'zh' ? '模块库' : 'Module library'}</h3></div><button className="module-add" onClick={onNewTemplate}><CirclePlus />{language === 'zh' ? '新建' : 'New'}</button></div>
-        <div className="module-stack">{templates.map(template => <button
-          type="button"
+        <div className="module-stack">{templates.map(template => <article
           className={`module-piece ${armedTemplateId === template.id ? 'armed' : ''}`}
           style={{ '--module': template.color } as React.CSSProperties}
           draggable
@@ -315,7 +338,7 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
           onDragEnd={() => { setDraggingPayload(undefined); setDragPreview(undefined) }}
           onClick={() => setArmedTemplateId(current => current === template.id ? undefined : template.id)}
           key={template.id}
-        ><span className="module-grip" aria-hidden="true">⠿</span><span className="module-symbol">{template.icon}</span><span className="module-copy"><b>{language === 'en' ? template.titleEn : template.title}</b><small>{template.durationMinutes} {language === 'zh' ? '分钟' : 'min'}</small></span></button>)}</div>
+        ><span className="module-grip" aria-hidden="true">⠿</span><span className="module-symbol">{template.icon}</span><span className="module-copy"><b>{language === 'en' ? template.titleEn : template.title}</b><small>{formatDuration(template.durationMinutes)}</small></span><span className="module-tools"><button type="button" draggable={false} onClick={event => { event.stopPropagation(); onEditTemplate(template) }} aria-label={language === 'zh' ? '修改模块' : 'Edit module'}><Pencil /></button><button type="button" draggable={false} onClick={event => { event.stopPropagation(); removeTemplate(template) }} aria-label={language === 'zh' ? '删除模块' : 'Delete module'}><Trash2 /></button></span></article>)}</div>
       </aside>
       <section className={`schedule-board ${armedTemplateId ? 'placing' : ''}`}>
         <div className="schedule-instructions"><span>{editMode ? (language === 'zh' ? '拖动已安排模块可重新排期' : 'Drag scheduled blocks to reschedule') : (language === 'zh' ? '开启编辑模式后可移动已有模块' : 'Turn on edit mode to move scheduled blocks')}</span>{armedTemplateId && <b>{language === 'zh' ? '点击时间轴放置选中的模块' : 'Click the timeline to place the selected module'}</b>}</div>
@@ -411,9 +434,8 @@ function WeekView({ data, selectedDate, language, t, conflicts, setSelectedDate,
   const days = weekDays(selectedDate)
   const weekBlocks = data.timeBlocks.filter(block => days.some(day => iso(day) === block.date))
   const planned = weekBlocks.reduce((sum, block) => sum + duration(block.startTime, block.endTime), 0)
-  const buffers = weekBlocks.filter(block => block.isBuffer).reduce((sum, block) => sum + duration(block.startTime, block.endTime), 0)
   return <>
-    <section className="page-title"><span className="eyebrow">{t.week}</span><h1>{language === 'zh' ? '本周的节奏' : 'Your week at a glance'}</h1><p>{Math.round(planned / 60)}h {language === 'zh' ? '已计划' : 'planned'} · {Math.round(buffers / 60 * 10) / 10}h {language === 'zh' ? '缓冲' : 'buffer'}</p></section>
+    <section className="page-title"><span className="eyebrow">{t.week}</span><h1>{language === 'zh' ? '本周的节奏' : 'Your week at a glance'}</h1><p>{formatDuration(planned)} {language === 'zh' ? '已计划' : 'planned'}</p></section>
     <div className="week-grid">{days.map(day => {
       const date = iso(day); const blocks = weekBlocks.filter(block => block.date === date).sort((a, b) => a.startTime.localeCompare(b.startTime))
       return <section className={`week-day ${date === iso(new Date()) ? 'today-col' : ''}`} key={date}>
@@ -427,7 +449,7 @@ function WeekView({ data, selectedDate, language, t, conflicts, setSelectedDate,
 function MonthView({ data, selectedDate, language, conflicts, setSelectedDate, setView }: Omit<SharedProps, 't'> & { conflicts: Set<string>; setSelectedDate: (date: string) => void; setView: (view: View) => void }) {
   const [month, setMonth] = useState(selectedDate)
   return <>
-    <section className="month-head"><div><span className="eyebrow">{language === 'zh' ? '暑假全景' : 'Summer overview'}</span><h1>{monthLabel(month, language)}</h1></div><div><button className="ghost icon" onClick={() => setMonth(iso(subMonths(parseISO(month), 1)))}><ChevronLeft /></button><button className="ghost icon" onClick={() => setMonth(iso(addMonths(parseISO(month), 1)))}><ChevronRight /></button></div></section>
+    <section className="month-head"><div><h1>{monthLabel(month, language)}</h1></div><div><button className="ghost icon" onClick={() => setMonth(iso(subMonths(parseISO(month), 1)))}><ChevronLeft /></button><button className="ghost icon" onClick={() => setMonth(iso(addMonths(parseISO(month), 1)))}><ChevronRight /></button></div></section>
     <div className="calendar-grid calendar-labels">{(language === 'zh' ? ['一','二','三','四','五','六','日'] : ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']).map(label => <span key={label}>{label}</span>)}</div>
     <div className="calendar-grid">{monthDays(month).map(day => {
       const date = iso(day); const blocks = data.timeBlocks.filter(block => block.date === date); const completed = blocks.filter(block => block.status === 'completed').length
@@ -436,7 +458,6 @@ function MonthView({ data, selectedDate, language, conflicts, setSelectedDate, s
         {blocks.length > 0 && <small>{completed}/{blocks.length} · {Math.round(blocks.reduce((sum, block) => sum + duration(block.startTime, block.endTime), 0) / 60 * 10) / 10}h</small>}
       </button>
     })}</div>
-    <section className="roadmap"><div className="section-head"><div><span className="eyebrow">{language === 'zh' ? '暑假路线图' : 'Summer roadmap'}</span><h2>{language === 'zh' ? '阶段目标' : 'Phases'}</h2></div></div><div className="phase-list">{data.summerPhases.map((phase, index) => <div className="phase" key={phase.id}><span style={{ background: phase.color }}>{index + 1}</span><div><b>{language === 'en' ? phase.titleEn : phase.title}</b><small>{phase.startDate} — {phase.endDate}</small></div></div>)}</div></section>
   </>
 }
 
@@ -448,18 +469,6 @@ function SettingsView({ data, setData, t, exportData, importRef, restore }: { da
     <section className="settings-card"><div><Sun /><span><b>{t.appearance}</b><small>{t[data.settings.theme]}</small></span></div><div className="segmented">{(['system','light','dark'] as const).map(theme => <button className={data.settings.theme === theme ? 'active' : ''} onClick={() => patch({ theme })} key={theme}>{t[theme]}</button>)}</div></section>
     <section className="settings-card data-actions"><div><Download /><span><b>{data.settings.language === 'zh' ? '数据与备份' : 'Data & backup'}</b><small>JSON</small></span></div><div><button className="secondary" onClick={exportData}><Download />{t.export}</button><button className="secondary" onClick={() => importRef.current?.click()}><FileUp />{t.import}</button><button className="danger-button" onClick={restore}><RotateCcw />{t.reset}</button></div></section>
   </div>
-}
-
-function BlockCard({ block, language, editMode, conflict, onDone, onSkip, onEdit, onDelete }: {
-  block: TimeBlock; language: 'zh' | 'en'; editMode: boolean; conflict: boolean; onDone: () => void; onSkip: () => void; onEdit: () => void; onDelete: () => void
-}) {
-  const title = language === 'en' && block.titleEn ? block.titleEn : block.title
-  return <article className={`block-card ${block.status} ${conflict ? 'conflicting' : ''} ${block.isBuffer ? 'buffer' : ''}`} style={{ '--block': block.color } as React.CSSProperties}>
-    <div className="block-time"><strong>{block.startTime}</strong><span>{block.endTime}</span></div>
-    <div className="block-color" />
-    <div className="block-content"><div><h3>{block.icon && <span>{block.icon}</span>}{title}</h3>{block.note && <p>{block.note}</p>}</div><div className="block-meta"><span>{duration(block.startTime, block.endTime)} min</span>{block.priority === 'high' && <span>High</span>}{conflict && <span className="conflict-text">! {language === 'zh' ? '时间冲突' : 'Time conflict'}</span>}</div></div>
-    <div className="block-actions"><button onClick={onDone} className={block.status === 'completed' ? 'selected' : ''} title="Complete"><Check /></button><button onClick={onSkip} className={block.status === 'skipped' ? 'selected' : ''} title="Skip">—</button>{editMode && <><button onClick={onEdit} title="Edit"><Pencil /></button><button onClick={onDelete} title="Delete"><Trash2 /></button></>}</div>
-  </article>
 }
 
 function TimeRangePicker({ startTime, endTime, language, onChange }: {
@@ -524,8 +533,9 @@ function TimeRangePicker({ startTime, endTime, language, onChange }: {
   </section>
 }
 
-function ModuleModal({ open, data, language, onClose, onSave }: {
+function ModuleModal({ open, template, data, language, onClose, onSave }: {
   open: boolean
+  template?: BlockTemplate
   data: PlannerData
   language: 'zh' | 'en'
   onClose: () => void
@@ -535,30 +545,30 @@ function ModuleModal({ open, data, language, onClose, onSave }: {
   const [durationMinutes, setDurationMinutes] = useState(45)
   const [categoryId, setCategoryId] = useState('study')
   useEffect(() => {
-    if (open) { setTitle(''); setDurationMinutes(45); setCategoryId('study') }
-  }, [open])
+    if (open) { setTitle(template?.title ?? ''); setDurationMinutes(template?.durationMinutes ?? 45); setCategoryId(template?.categoryId ?? 'study') }
+  }, [open, template])
   if (!open) return null
   return <div className="modal-backdrop" onMouseDown={event => event.currentTarget === event.target && onClose()}>
     <form className="modal module-modal" onSubmit={event => { event.preventDefault(); if (title.trim()) onSave({ title: title.trim(), durationMinutes, categoryId }) }}>
-      <header><div><span className="eyebrow">{language === 'zh' ? '模块库' : 'Module library'}</span><h2>{language === 'zh' ? '创建一个事项模块' : 'Create a task module'}</h2></div><button type="button" className="ghost icon" onClick={onClose}><X /></button></header>
+      <header><div><span className="eyebrow">{language === 'zh' ? '模块库' : 'Module library'}</span><h2>{template ? (language === 'zh' ? '修改事项模块' : 'Edit task module') : (language === 'zh' ? '创建一个事项模块' : 'Create a task module')}</h2></div><button type="button" className="ghost icon" onClick={onClose}><X /></button></header>
       <p className="module-modal-intro">{language === 'zh' ? '这里只定义事项和持续时间。具体日期与开始时间在拖入时间轴时决定。' : 'Define the task and its duration here. Choose the date and start time when you place it on the timeline.'}</p>
       <label>{language === 'zh' ? '模块名称' : 'Module name'}<input autoFocus value={title} onChange={event => setTitle(event.target.value)} placeholder={language === 'zh' ? '例如：阅读、健身、复习' : 'e.g. Reading, workout, review'} required /></label>
-      <div className="form-row"><label>{language === 'zh' ? '持续时间' : 'Duration'}<select value={durationMinutes} onChange={event => setDurationMinutes(Number(event.target.value))}>{[15, 30, 45, 60, 90, 120, 180, 240].map(value => <option value={value} key={value}>{value >= 60 ? `${Math.floor(value / 60)}${value % 60 ? `h ${value % 60}m` : language === 'zh' ? ' 小时' : 'h'}` : `${value} min`}</option>)}</select></label><label>{language === 'zh' ? '分类' : 'Category'}<select value={categoryId} onChange={event => setCategoryId(event.target.value)}>{data.categories.map(category => <option value={category.id} key={category.id}>{language === 'zh' ? category.name : category.nameEn}</option>)}</select></label></div>
-      <footer><button type="button" className="secondary" onClick={onClose}>{language === 'zh' ? '取消' : 'Cancel'}</button><button className="primary" type="submit"><CirclePlus />{language === 'zh' ? '加入模块库' : 'Add to library'}</button></footer>
+      <div className="form-row"><label>{language === 'zh' ? '持续时间' : 'Duration'}<select value={durationMinutes} onChange={event => setDurationMinutes(Number(event.target.value))}>{[15, 30, 45, 60, 90, 120, 180, 240].map(value => <option value={value} key={value}>{formatDuration(value)}</option>)}</select></label><label>{language === 'zh' ? '分类' : 'Category'}<select value={categoryId} onChange={event => setCategoryId(event.target.value)}>{data.categories.map(category => <option value={category.id} key={category.id}>{language === 'zh' ? category.name : category.nameEn}</option>)}</select></label></div>
+      <footer><button type="button" className="secondary" onClick={onClose}>{language === 'zh' ? '取消' : 'Cancel'}</button><button className="primary" type="submit">{template ? <Pencil /> : <CirclePlus />}{template ? (language === 'zh' ? '保存修改' : 'Save changes') : (language === 'zh' ? '加入模块库' : 'Add to library')}</button></footer>
     </form>
   </div>
 }
 
 function BlockModal({ open, block, date, data, language, onClose, onSave }: { open: boolean; block?: TimeBlock; date: string; data: PlannerData; language: 'zh' | 'en'; onClose: () => void; onSave: (block: TimeBlock) => void }) {
   const [form, setForm] = useState<Partial<TimeBlock>>({})
-  useEffect(() => setForm(block ?? { date, startTime: '09:00', endTime: '10:00', categoryId: 'study', priority: 'medium', status: 'pending', isFixed: false, canMove: true, canSplit: true, canBeOverridden: true, isBuffer: false }), [open, block, date])
+  useEffect(() => setForm(block ?? { date, startTime: '09:00', endTime: '10:00', categoryId: 'study', priority: 'medium', status: 'pending', isFixed: false, canMove: true, canSplit: true, canBeOverridden: true }), [open, block, date])
   if (!open) return null
   const category = data.categories.find(item => item.id === form.categoryId) ?? data.categories[0]
   const submit = (event: React.FormEvent) => {
     event.preventDefault()
     if (!form.title?.trim() || !form.date || !form.startTime || !form.endTime || form.endTime <= form.startTime) return
     const timestamp = new Date().toISOString()
-    onSave({ id: block?.id ?? crypto.randomUUID(), title: form.title.trim(), titleEn: form.titleEn?.trim(), date: form.date, startTime: form.startTime, endTime: form.endTime, categoryId: category.id, color: category.color, priority: form.priority ?? 'medium', note: form.note?.trim(), status: block?.status ?? 'pending', isFixed: !!form.isFixed, canMove: form.canMove !== false, canSplit: form.canSplit !== false, canBeOverridden: form.canBeOverridden !== false, isBuffer: !!form.isBuffer, templateId: block?.templateId, createdAt: block?.createdAt ?? timestamp, updatedAt: timestamp })
+    onSave({ id: block?.id ?? crypto.randomUUID(), title: form.title.trim(), titleEn: form.titleEn?.trim(), date: form.date, startTime: form.startTime, endTime: form.endTime, categoryId: category.id, color: category.color, priority: form.priority ?? 'medium', note: form.note?.trim(), status: block?.status ?? 'pending', isFixed: !!form.isFixed, canMove: form.canMove !== false, canSplit: form.canSplit !== false, canBeOverridden: form.canBeOverridden !== false, templateId: block?.templateId, createdAt: block?.createdAt ?? timestamp, updatedAt: timestamp })
   }
   const patch = (value: Partial<TimeBlock>) => setForm(current => ({ ...current, ...value }))
   return <div className="modal-backdrop" onMouseDown={event => event.currentTarget === event.target && onClose()}>
