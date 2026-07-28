@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CalendarDays, CalendarRange, Check, ChevronLeft, ChevronRight, CirclePlus, Clock3,
-  Copy, Download, Eye, FileUp, Focus, Languages, Layers3, Maximize2, Moon, Newspaper,
+  Download, Eye, FileUp, Focus, Languages, Layers3, Maximize2, Moon, Newspaper,
   Pencil, RotateCcw, Settings as SettingsIcon, Sun, Trash2, X,
 } from 'lucide-react'
 import { addDays, addMonths, format, isSameMonth, parseISO, subMonths } from 'date-fns'
@@ -58,7 +58,7 @@ const dailyQuotes = [
 
 const nav: Array<[View, typeof CalendarDays]> = [
   ['month', CalendarDays], ['week', CalendarRange], ['day', CalendarDays],
-  ['now', Focus], ['templates', Copy], ['news', Newspaper], ['settings', SettingsIcon],
+  ['now', Focus], ['news', Newspaper], ['settings', SettingsIcon],
 ]
 
 const timeToMinutes = (time: string) => {
@@ -221,12 +221,11 @@ export default function App() {
         {view === 'week' && <WeekView {...{ data, selectedDate, language, t, conflicts, setSelectedDate, setView }} />}
         {view === 'month' && <MonthView {...{ data, selectedDate, language, conflicts, setSelectedDate, setView }} />}
         {view === 'news' && <NewsPage language={language} />}
-        {view === 'templates' && <TemplatesView data={data} language={language} t={t} addFromTemplate={addFromTemplate} onNewTemplate={() => setModuleModalOpen(true)} />}
         {view === 'settings' && <SettingsView {...{ data, setData, t, exportData, importRef, restore }} />}
       </div>
     </main>
 
-    {editMode && !['news', 'templates', 'settings'].includes(view) && <button className="floating-add" onClick={() => view === 'day' ? setModuleModalOpen(true) : setModal({ open: true })}><CirclePlus />{t.add}</button>}
+    {editMode && !['news', 'settings'].includes(view) && <button className="floating-add" onClick={() => view === 'day' ? setModuleModalOpen(true) : setModal({ open: true })}><CirclePlus />{t.add}</button>}
     <input ref={importRef} type="file" accept=".json,application/json" hidden onChange={event => { void importData(event.target.files?.[0]); event.target.value = '' }} />
     <BlockModal open={modal.open} block={modal.block} date={selectedDate} data={data} language={language} onClose={() => setModal({ open: false })} onSave={saveBlock} />
     <ModuleModal open={moduleModalOpen} data={data} language={language} onClose={() => setModuleModalOpen(false)} onSave={saveTemplate} />
@@ -438,13 +437,6 @@ function MonthView({ data, selectedDate, language, conflicts, setSelectedDate, s
       </button>
     })}</div>
     <section className="roadmap"><div className="section-head"><div><span className="eyebrow">{language === 'zh' ? '暑假路线图' : 'Summer roadmap'}</span><h2>{language === 'zh' ? '阶段目标' : 'Phases'}</h2></div></div><div className="phase-list">{data.summerPhases.map((phase, index) => <div className="phase" key={phase.id}><span style={{ background: phase.color }}>{index + 1}</span><div><b>{language === 'en' ? phase.titleEn : phase.title}</b><small>{phase.startDate} — {phase.endDate}</small></div></div>)}</div></section>
-  </>
-}
-
-function TemplatesView({ data, language, t, addFromTemplate, onNewTemplate }: { data: PlannerData; language: 'zh' | 'en'; t: SharedProps['t']; addFromTemplate: (template: BlockTemplate, requestedStart?: string) => void; onNewTemplate: () => void }) {
-  return <>
-    <section className="page-title template-title"><div><span className="eyebrow">{t.templates}</span><h1>{language === 'zh' ? '常用时间模块' : 'Reusable time blocks'}</h1><p>{t.templateHint}</p></div><button className="primary" onClick={onNewTemplate}><CirclePlus />{language === 'zh' ? '新建模块' : 'New module'}</button></section>
-    <div className="template-grid">{data.blockTemplates.filter(template => !template.isHidden).map(template => <button className="template-card" onClick={() => addFromTemplate(template)} key={template.id}><span className="template-icon" style={{ background: `${template.color}22`, color: template.color }}>{template.icon}</span><div><b>{language === 'en' ? template.titleEn : template.title}</b><small><Clock3 />{template.durationMinutes} min</small></div><CirclePlus /></button>)}</div>
   </>
 }
 
