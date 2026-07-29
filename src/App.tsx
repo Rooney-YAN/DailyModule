@@ -92,6 +92,7 @@ const snapMinutes = (minutes: number) => Math.round(minutes / 15) * 15
 const formatDuration = (minutes: number) => {
   const hours = Math.floor(minutes / 60)
   const remainder = minutes % 60
+  if (hours === 0) return `${remainder}min`
   return remainder === 0 ? `${hours}h` : `${hours}h${remainder}min`
 }
 
@@ -283,9 +284,9 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
   const templates = data.blockTemplates.filter(template => !template.isHidden)
   const timelineStart = 0
   const timelineEnd = 24 * 60
-  const hourHeight = 72
+  const hourHeight = 96
   const timelineHeight = (timelineEnd - timelineStart) / 60 * hourHeight
-  const hours = Array.from({ length: (timelineEnd - timelineStart) / 60 + 1 }, (_, index) => timelineStart + index * 60)
+  const ticks = Array.from({ length: (timelineEnd - timelineStart) / 15 + 1 }, (_, index) => timelineStart + index * 15)
   const getMinutesFromPointer = (clientY: number, element: HTMLElement) => {
     const rect = element.getBoundingClientRect()
     return snapMinutes(timelineStart + (clientY - rect.top) / hourHeight * 60)
@@ -369,14 +370,14 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
             setDraggingPayload(undefined)
           }}
         >
-          {hours.map(hour => <div className="schedule-hour" style={{ top: (hour - timelineStart) / 60 * hourHeight }} key={hour}><time>{timeFromMinutes(hour)}</time><span /></div>)}
-          {dragPreview && <div className="schedule-ghost" style={{ top: (dragPreview.start - timelineStart) / 60 * hourHeight, height: Math.max(38, dragPreview.duration / 60 * hourHeight) }}><strong>{timeFromMinutes(dragPreview.start)} — {timeFromMinutes(dragPreview.start + dragPreview.duration)}</strong></div>}
+          {ticks.map(tick => <div className={`schedule-tick ${tick % 60 === 0 ? 'major' : tick % 30 === 0 ? 'half' : 'quarter'}`} style={{ top: (tick - timelineStart) / 60 * hourHeight }} key={tick}><time>{timeFromMinutes(tick)}</time><span /></div>)}
+          {dragPreview && <div className="schedule-ghost" style={{ top: (dragPreview.start - timelineStart) / 60 * hourHeight, height: dragPreview.duration / 60 * hourHeight }}><strong>{timeFromMinutes(dragPreview.start)} — {timeFromMinutes(dragPreview.start + dragPreview.duration)}</strong></div>}
           {blocks.length === 0 && <div className="schedule-empty"><CirclePlus /><b>{language === 'zh' ? '把左侧模块拖到这里' : 'Drag a module here'}</b><span>{language === 'zh' ? '时间会自动吸附到 15 分钟刻度' : 'Time snaps to 15-minute intervals'}</span></div>}
           {blocks.map(block => <article
             tabIndex={0}
             draggable={editMode && block.canMove}
-            className={`scheduled-piece ${block.status} ${conflicts.has(block.id) ? 'conflicting' : ''} ${editMode ? 'movable' : ''}`}
-            style={{ '--module': block.color, top: (timeToMinutes(block.startTime) - timelineStart) / 60 * hourHeight, height: Math.max(44, duration(block.startTime, block.endTime) / 60 * hourHeight) } as React.CSSProperties}
+            className={`scheduled-piece ${duration(block.startTime, block.endTime) <= 30 ? 'compact' : ''} ${block.status} ${conflicts.has(block.id) ? 'conflicting' : ''} ${editMode ? 'movable' : ''}`}
+            style={{ '--module': block.color, top: (timeToMinutes(block.startTime) - timelineStart) / 60 * hourHeight, height: duration(block.startTime, block.endTime) / 60 * hourHeight } as React.CSSProperties}
             onClick={event => { event.stopPropagation(); setModal({ open: true, block }) }}
             onDragStart={event => {
               const dragItem = { type: 'block' as const, id: block.id }
