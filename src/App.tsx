@@ -405,19 +405,30 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
 }
 
 function NowView({ data, selectedDate, language, t, updateBlock }: SharedProps & { updateBlock: (id: string, patch: Partial<TimeBlock>) => void }) {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const updateNow = () => setNow(new Date())
+    const timer = window.setInterval(updateNow, 1000)
+    document.addEventListener('visibilitychange', updateNow)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', updateNow)
+    }
+  }, [])
   const blocks = data.timeBlocks.filter(block => block.date === selectedDate && block.status === 'pending').sort((a, b) => a.startTime.localeCompare(b.startTime))
-  const now = new Date()
-  const nowMinutes = now.getHours() * 60 + now.getMinutes()
-  const current = selectedDate === iso(now) ? blocks.find(block => timeToMinutes(block.startTime) <= nowMinutes && timeToMinutes(block.endTime) > nowMinutes) : blocks[0]
+  const isToday = selectedDate === iso(now)
+  const nowSeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()
+  const current = isToday ? blocks.find(block => timeToMinutes(block.startTime) * 60 <= nowSeconds && timeToMinutes(block.endTime) * 60 > nowSeconds) : blocks[0]
   const next = blocks.find(block => !current || timeToMinutes(block.startTime) > timeToMinutes(current.endTime))
-  const remaining = current ? Math.max(0, timeToMinutes(current.endTime) - nowMinutes) : 0
+  const remainingSeconds = current ? Math.max(0, isToday ? timeToMinutes(current.endTime) * 60 - nowSeconds : duration(current.startTime, current.endTime) * 60) : 0
+  const countdown = `${String(Math.floor(remainingSeconds / 3600)).padStart(2, '0')}:${String(Math.floor(remainingSeconds % 3600 / 60)).padStart(2, '0')}:${String(remainingSeconds % 60).padStart(2, '0')}`
   return <div className="now-layout">
     <section className="now-main">
       <div className="now-top"><span className="eyebrow">{t.current}</span><button className="ghost icon" onClick={() => document.documentElement.requestFullscreen?.()} aria-label="Fullscreen"><Maximize2 /></button></div>
       {current ? <>
         <span className="now-time">{current.startTime} — {current.endTime}</span>
         <h1>{language === 'en' && current.titleEn ? current.titleEn : current.title}</h1>
-        <div className="countdown"><strong>{remaining}</strong><span>{language === 'zh' ? '分钟' : 'min'}<br />{t.remaining}</span></div>
+        <div className="countdown"><time dateTime={`PT${remainingSeconds}S`}>{countdown}</time><span>{language === 'zh' ? '时 : 分 : 秒' : 'hr : min : sec'}<br />{t.remaining}</span></div>
         {current.note && <p className="now-note">{current.note}</p>}
         <div className="now-actions"><button className="primary" onClick={() => updateBlock(current.id, { status: 'completed' })}><Check />{t.done}</button><button className="secondary" onClick={() => updateBlock(current.id, { status: 'skipped' })}>{t.skip}</button></div>
       </> : <Empty title={t.free} hint={next ? `${language === 'zh' ? '下一项开始于' : 'Next starts at'} ${next.startTime}` : t.emptyHint} />}
