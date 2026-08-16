@@ -30,10 +30,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Generate daily news brief
-        env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          DEEPSEEK_MODEL: deepseek-v4-flash
+      - name: Collect news from public RSS feeds
         run: pnpm run news:generate
       - run: pnpm run build
       - uses: actions/configure-pages@v5
