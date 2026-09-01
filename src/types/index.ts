@@ -68,6 +68,7 @@ export type Settings = {
   defaultDayEnd: string
   countLifeBlocks: boolean
   defaultView: 'day' | 'now'
+  fall2026CoursesImported?: boolean
 }
 
 export type PlannerData = {

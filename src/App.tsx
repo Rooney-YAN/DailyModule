@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { addDays, addMonths, format, isSameMonth, parseISO, subMonths } from 'date-fns'
 import type { BlockTemplate, PlannerData, TimeBlock, View } from './types'
-import { createDefaultData, isPlannerData, loadData, resetData, saveData } from './lib/storage'
+import { applyFall2026CourseSchedule, createDefaultData, isPlannerData, loadData, resetData, saveData } from './lib/storage'
 import { dateLabel, duration, iso, monthDays, monthLabel, weekDays } from './lib/dates'
 import NewsPage from './components/NewsPage'
 
@@ -209,7 +209,7 @@ export default function App() {
     try {
       const parsed: unknown = JSON.parse(await file.text())
       if (!isPlannerData(parsed)) throw new Error('invalid')
-      if (window.confirm(language === 'zh' ? '导入会覆盖当前数据，确定继续吗？' : 'Importing replaces current data. Continue?')) setData(parsed)
+      if (window.confirm(language === 'zh' ? '导入会覆盖当前数据，确定继续吗？' : 'Importing replaces current data. Continue?')) setData(applyFall2026CourseSchedule(parsed))
     } catch {
       window.alert(language === 'zh' ? '无法导入：文件格式不正确。' : 'Import failed: invalid file format.')
     }

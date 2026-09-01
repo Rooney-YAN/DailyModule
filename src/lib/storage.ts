@@ -38,15 +38,141 @@ const blockTemplates: BlockTemplate[] = templateSeed.map((t, i) => ({
   isFixed: false, canMove: true, canSplit: true, canBeOverridden: true, isBuiltIn: true, isHidden: false,
 }))
 
+const FALL_2026_START = '2026-09-01'
+const COURSE_TIMESTAMP = '2026-09-01T00:00:00.000Z'
+
+type CourseTemplateSeed = {
+  id: string
+  title: string
+  titleEn: string
+  durationMinutes: number
+  color: string
+  icon: string
+}
+
+const courseTemplateSeeds: CourseTemplateSeed[] = [
+  { id: 'course-comp2012-l1', title: 'COMP 2012 (L1)', titleEn: 'COMP 2012 (L1)', durationMinutes: 90, color: '#536dfe', icon: 'C2' },
+  { id: 'course-comp2012-la3', title: 'COMP 2012 (LA3)', titleEn: 'COMP 2012 (LA3)', durationMinutes: 120, color: '#536dfe', icon: 'C2' },
+  { id: 'course-comp2611-l1', title: 'COMP 2611 (L1)', titleEn: 'COMP 2611 (L1)', durationMinutes: 90, color: '#7c4dff', icon: 'C6' },
+  { id: 'course-comp2611-t2', title: 'COMP 2611 (T2)', titleEn: 'COMP 2611 (T2)', durationMinutes: 60, color: '#7c4dff', icon: 'C6' },
+  { id: 'course-comp2611-la1', title: 'COMP 2611 (LA1)', titleEn: 'COMP 2611 (LA1)', durationMinutes: 60, color: '#7c4dff', icon: 'C6' },
+  { id: 'course-comp3711-l2', title: 'COMP 3711 (L2)', titleEn: 'COMP 3711 (L2)', durationMinutes: 90, color: '#16a07a', icon: 'C7' },
+  { id: 'course-comp3711-t1', title: 'COMP 3711 (T1)', titleEn: 'COMP 3711 (T1)', durationMinutes: 60, color: '#16a07a', icon: 'C7' },
+  { id: 'course-comp4900-t1', title: 'COMP 4900 (T1)', titleEn: 'COMP 4900 (T1)', durationMinutes: 60, color: '#ef9548', icon: 'C4' },
+  { id: 'course-math2023-l1', title: 'MATH 2023 (L1)', titleEn: 'MATH 2023 (L1)', durationMinutes: 90, color: '#df5c88', icon: 'M2' },
+  { id: 'course-math2023-t1a', title: 'MATH 2023 (T1A)', titleEn: 'MATH 2023 (T1A)', durationMinutes: 60, color: '#df5c88', icon: 'M2' },
+]
+
+const courseTemplates: BlockTemplate[] = courseTemplateSeeds.map(template => ({
+  ...template,
+  categoryId: 'study',
+  priority: 'high',
+  isFixed: true,
+  canMove: false,
+  canSplit: false,
+  canBeOverridden: false,
+  isBuiltIn: true,
+  isHidden: false,
+}))
+
+type CourseMeeting = {
+  templateId: string
+  weekday: number
+  startTime: string
+  endTime: string
+  endDate: string
+  courseName: string
+  section: string
+  location: string
+  instructor?: string
+  excludedDates?: string[]
+}
+
+const courseMeetings: CourseMeeting[] = [
+  { templateId: 'course-comp2012-l1', weekday: 2, startTime: '13:30', endTime: '15:00', endDate: '2026-11-30', courseName: 'Object-Oriented Programming and Data Structures', section: 'L1', location: 'Lecture Theater A (401)', instructor: 'MAK, Brian' },
+  { templateId: 'course-comp2012-l1', weekday: 4, startTime: '13:30', endTime: '15:00', endDate: '2026-11-30', courseName: 'Object-Oriented Programming and Data Structures', section: 'L1', location: 'Lecture Theater A (401)', instructor: 'MAK, Brian', excludedDates: ['2026-10-01'] },
+  { templateId: 'course-comp2012-la3', weekday: 4, startTime: '18:00', endTime: '20:00', endDate: '2026-11-30', courseName: 'Object-Oriented Programming and Data Structures', section: 'LA3', location: 'G012, LSK Bldg (199)', excludedDates: ['2026-10-01'] },
+  { templateId: 'course-comp2611-l1', weekday: 2, startTime: '10:30', endTime: '12:00', endDate: '2026-11-30', courseName: 'Computer Organization', section: 'L1', location: 'Rm 4619, Lift 31-32 (126)', instructor: 'LI, Xin' },
+  { templateId: 'course-comp2611-l1', weekday: 4, startTime: '10:30', endTime: '12:00', endDate: '2026-11-30', courseName: 'Computer Organization', section: 'L1', location: 'Rm 4619, Lift 31-32 (126)', instructor: 'LI, Xin', excludedDates: ['2026-10-01'] },
+  { templateId: 'course-comp2611-t2', weekday: 2, startTime: '12:00', endTime: '13:00', endDate: '2026-11-30', courseName: 'Computer Organization', section: 'T2', location: 'Rm 2465, Lift 25-26 (122)' },
+  { templateId: 'course-comp2611-la1', weekday: 4, startTime: '12:00', endTime: '13:00', endDate: '2026-11-30', courseName: 'Computer Organization', section: 'LA1', location: 'Rm 2465, Lift 25-26 (122)', excludedDates: ['2026-10-01'] },
+  { templateId: 'course-comp3711-l2', weekday: 1, startTime: '10:30', endTime: '12:00', endDate: '2026-11-30', courseName: 'Design and Analysis of Algorithms', section: 'L2', location: 'Lecture Theater G (150) / LG4101, Teaching Hub (150)', instructor: 'MA, Xiaojuan', excludedDates: ['2026-10-19'] },
+  { templateId: 'course-comp3711-l2', weekday: 3, startTime: '10:30', endTime: '12:00', endDate: '2026-11-30', courseName: 'Design and Analysis of Algorithms', section: 'L2', location: 'Lecture Theater G (150) / LG4101, Teaching Hub (150)', instructor: 'MA, Xiaojuan' },
+  { templateId: 'course-comp3711-t1', weekday: 1, startTime: '15:30', endTime: '16:30', endDate: '2026-11-30', courseName: 'Design and Analysis of Algorithms', section: 'T1', location: 'Rm 5403, Lift 17-18 (134)', excludedDates: ['2026-10-19'] },
+  { templateId: 'course-comp4900-t1', weekday: 3, startTime: '18:00', endTime: '19:00', endDate: '2026-11-30', courseName: 'Academic and Professional Development', section: 'T1', location: 'Lecture Theater A (401)', instructor: 'LEUNG, Wai Ting' },
+  { templateId: 'course-math2023-l1', weekday: 2, startTime: '09:00', endTime: '10:30', endDate: '2026-11-26', courseName: 'Multivariable Calculus', section: 'L1', location: 'Lecture Theater F (150) / LG4101, Teaching Hub (150)', instructor: 'HO, Hon Ming' },
+  { templateId: 'course-math2023-l1', weekday: 4, startTime: '09:00', endTime: '10:30', endDate: '2026-11-26', courseName: 'Multivariable Calculus', section: 'L1', location: 'Lecture Theater F (150) / LG4101, Teaching Hub (150)', instructor: 'HO, Hon Ming', excludedDates: ['2026-10-01'] },
+  { templateId: 'course-math2023-t1a', weekday: 2, startTime: '18:00', endTime: '19:00', endDate: '2026-11-30', courseName: 'Multivariable Calculus', section: 'T1A', location: 'Rm 2302, Lift 17-18 (74)', instructor: 'HO, Hon Ming' },
+]
+
+function weeklyDates(weekday: number, endDate: string, excludedDates: string[] = []) {
+  const dates: string[] = []
+  const cursor = new Date(`${FALL_2026_START}T00:00:00Z`)
+  while (cursor.getUTCDay() !== weekday) cursor.setUTCDate(cursor.getUTCDate() + 1)
+  while (cursor.toISOString().slice(0, 10) <= endDate) {
+    const date = cursor.toISOString().slice(0, 10)
+    if (!excludedDates.includes(date)) dates.push(date)
+    cursor.setUTCDate(cursor.getUTCDate() + 7)
+  }
+  return dates
+}
+
+const courseTemplateMap = new Map(courseTemplates.map(template => [template.id, template]))
+const courseBlocks: TimeBlock[] = courseMeetings.flatMap(meeting => {
+  const template = courseTemplateMap.get(meeting.templateId)
+  if (!template) return []
+  const note = [
+    template.title.split(' (')[0] + ` - ${meeting.courseName}`,
+    `Section: ${meeting.section}`,
+    `Location: ${meeting.location}`,
+    meeting.instructor ? `Instructor: ${meeting.instructor}` : '',
+  ].filter(Boolean).join('\n')
+  return weeklyDates(meeting.weekday, meeting.endDate, meeting.excludedDates).map(date => ({
+    id: `fall-2026-${meeting.templateId}-${date}`,
+    title: template.title,
+    titleEn: template.titleEn,
+    date,
+    startTime: meeting.startTime,
+    endTime: meeting.endTime,
+    categoryId: 'study',
+    color: template.color,
+    icon: template.icon,
+    priority: 'high' as const,
+    note,
+    status: 'pending' as const,
+    isFixed: true,
+    canMove: false,
+    canSplit: false,
+    canBeOverridden: false,
+    templateId: template.id,
+    createdAt: COURSE_TIMESTAMP,
+    updatedAt: COURSE_TIMESTAMP,
+  }))
+})
+
+export function applyFall2026CourseSchedule(data: PlannerData): PlannerData {
+  if (data.settings.fall2026CoursesImported) return data
+  const templateIds = new Set(data.blockTemplates.map(template => template.id))
+  const blockIds = new Set(data.timeBlocks.map(block => block.id))
+  const blockSignatures = new Set(data.timeBlocks.map(block => `${block.date}|${block.startTime}|${block.endTime}|${block.title}`))
+  const newBlocks = courseBlocks.filter(block => !blockIds.has(block.id) && !blockSignatures.has(`${block.date}|${block.startTime}|${block.endTime}|${block.title}`))
+  return {
+    ...data,
+    settings: { ...data.settings, fall2026CoursesImported: true },
+    blockTemplates: [...data.blockTemplates, ...courseTemplates.filter(template => !templateIds.has(template.id))],
+    timeBlocks: [...data.timeBlocks, ...newBlocks],
+  }
+}
+
 function makeBlock(id: string, title: string, titleEn: string, date: string, startTime: string, endTime: string, categoryId: string, color: string, priority: 'low' | 'medium' | 'high' = 'medium', status: TimeBlock['status'] = 'pending'): TimeBlock {
   const timestamp = new Date().toISOString()
   return { id, title, titleEn, date, startTime, endTime, categoryId, color, priority, status, isFixed: false, canMove: true, canSplit: true, canBeOverridden: true, createdAt: timestamp, updatedAt: timestamp }
 }
 
 export function createDefaultData(): PlannerData {
-  return {
+  return applyFall2026CourseSchedule({
     schemaVersion: 1,
-    settings: { language: 'zh', theme: 'system', weekStartsOn: 1, defaultDayStart: '07:00', defaultDayEnd: '23:00', countLifeBlocks: false, defaultView: 'day' },
+    settings: { language: 'zh', theme: 'system', weekStartsOn: 1, defaultDayStart: '07:00', defaultDayEnd: '23:00', countLifeBlocks: false, defaultView: 'day', fall2026CoursesImported: false },
     categories,
     blockTemplates,
     timeBlocks: [
@@ -64,7 +190,7 @@ export function createDefaultData(): PlannerData {
       { id: 'phase-2', title: '集中成长', titleEn: 'Deep growth', startDate: day(15), endDate: day(35), color: '#a36be0' },
       { id: 'phase-3', title: '收尾与回顾', titleEn: 'Wrap up', startDate: day(36), endDate: day(55), color: '#39a876' },
     ],
-  }
+  })
 }
 
 export function isPlannerData(value: unknown): value is PlannerData {
@@ -85,7 +211,7 @@ export function loadData(): PlannerData {
       const legacy = item as typeof item & { isBuffer?: boolean }
       return legacy.isBuffer === true || item.title === '缓冲时间' || item.titleEn === 'Buffer Time' || item.titleEn === 'Buffer time'
     }
-    return {
+    return applyFall2026CourseSchedule({
       ...parsed,
       blockTemplates: parsed.blockTemplates.filter(template => !isLegacyBuffer(template)).map(template => {
         const { isBuffer: _legacyBuffer, ...clean } = template as BlockTemplate & { isBuffer?: boolean }
@@ -95,7 +221,7 @@ export function loadData(): PlannerData {
         const { isBuffer: _legacyBuffer, ...clean } = block as TimeBlock & { isBuffer?: boolean }
         return clean
       }),
-    }
+    })
   } catch {
     return createDefaultData()
   }
