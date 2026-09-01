@@ -51,16 +51,16 @@ type CourseTemplateSeed = {
 }
 
 const courseTemplateSeeds: CourseTemplateSeed[] = [
-  { id: 'course-comp2012-l1', title: 'COMP 2012 (L1)', titleEn: 'COMP 2012 (L1)', durationMinutes: 90, color: '#536dfe', icon: 'C2' },
-  { id: 'course-comp2012-la3', title: 'COMP 2012 (LA3)', titleEn: 'COMP 2012 (LA3)', durationMinutes: 120, color: '#536dfe', icon: 'C2' },
-  { id: 'course-comp2611-l1', title: 'COMP 2611 (L1)', titleEn: 'COMP 2611 (L1)', durationMinutes: 90, color: '#7c4dff', icon: 'C6' },
-  { id: 'course-comp2611-t2', title: 'COMP 2611 (T2)', titleEn: 'COMP 2611 (T2)', durationMinutes: 60, color: '#7c4dff', icon: 'C6' },
-  { id: 'course-comp2611-la1', title: 'COMP 2611 (LA1)', titleEn: 'COMP 2611 (LA1)', durationMinutes: 60, color: '#7c4dff', icon: 'C6' },
-  { id: 'course-comp3711-l2', title: 'COMP 3711 (L2)', titleEn: 'COMP 3711 (L2)', durationMinutes: 90, color: '#16a07a', icon: 'C7' },
-  { id: 'course-comp3711-t1', title: 'COMP 3711 (T1)', titleEn: 'COMP 3711 (T1)', durationMinutes: 60, color: '#16a07a', icon: 'C7' },
-  { id: 'course-comp4900-t1', title: 'COMP 4900 (T1)', titleEn: 'COMP 4900 (T1)', durationMinutes: 60, color: '#ef9548', icon: 'C4' },
-  { id: 'course-math2023-l1', title: 'MATH 2023 (L1)', titleEn: 'MATH 2023 (L1)', durationMinutes: 90, color: '#df5c88', icon: 'M2' },
-  { id: 'course-math2023-t1a', title: 'MATH 2023 (T1A)', titleEn: 'MATH 2023 (T1A)', durationMinutes: 60, color: '#df5c88', icon: 'M2' },
+  { id: 'course-comp2012-l1', title: 'COMP 2012 (L1)', titleEn: 'COMP 2012 (L1)', durationMinutes: 90, color: '#536dfe', icon: '' },
+  { id: 'course-comp2012-la3', title: 'COMP 2012 (LA3)', titleEn: 'COMP 2012 (LA3)', durationMinutes: 120, color: '#536dfe', icon: '' },
+  { id: 'course-comp2611-l1', title: 'COMP 2611 (L1)', titleEn: 'COMP 2611 (L1)', durationMinutes: 90, color: '#7c4dff', icon: '' },
+  { id: 'course-comp2611-t2', title: 'COMP 2611 (T2)', titleEn: 'COMP 2611 (T2)', durationMinutes: 60, color: '#7c4dff', icon: '' },
+  { id: 'course-comp2611-la1', title: 'COMP 2611 (LA1)', titleEn: 'COMP 2611 (LA1)', durationMinutes: 60, color: '#7c4dff', icon: '' },
+  { id: 'course-comp3711-l2', title: 'COMP 3711 (L2)', titleEn: 'COMP 3711 (L2)', durationMinutes: 90, color: '#16a07a', icon: '' },
+  { id: 'course-comp3711-t1', title: 'COMP 3711 (T1)', titleEn: 'COMP 3711 (T1)', durationMinutes: 60, color: '#16a07a', icon: '' },
+  { id: 'course-comp4900-t1', title: 'COMP 4900 (T1)', titleEn: 'COMP 4900 (T1)', durationMinutes: 60, color: '#ef9548', icon: '' },
+  { id: 'course-math2023-l1', title: 'MATH 2023 (L1)', titleEn: 'MATH 2023 (L1)', durationMinutes: 90, color: '#df5c88', icon: '' },
+  { id: 'course-math2023-t1a', title: 'MATH 2023 (T1A)', titleEn: 'MATH 2023 (T1A)', durationMinutes: 60, color: '#df5c88', icon: '' },
 ]
 
 const courseTemplates: BlockTemplate[] = courseTemplateSeeds.map(template => ({
@@ -151,16 +151,22 @@ const courseBlocks: TimeBlock[] = courseMeetings.flatMap(meeting => {
 })
 
 export function applyFall2026CourseSchedule(data: PlannerData): PlannerData {
-  if (data.settings.fall2026CoursesImported) return data
-  const templateIds = new Set(data.blockTemplates.map(template => template.id))
-  const blockIds = new Set(data.timeBlocks.map(block => block.id))
-  const blockSignatures = new Set(data.timeBlocks.map(block => `${block.date}|${block.startTime}|${block.endTime}|${block.title}`))
+  const courseTemplateIds = new Set(courseTemplates.map(template => template.id))
+  const normalizedData: PlannerData = {
+    ...data,
+    blockTemplates: data.blockTemplates.map(template => courseTemplateIds.has(template.id) ? { ...template, icon: '' } : template),
+    timeBlocks: data.timeBlocks.map(block => block.id.startsWith('fall-2026-course-') ? { ...block, icon: '' } : block),
+  }
+  if (normalizedData.settings.fall2026CoursesImported) return normalizedData
+  const templateIds = new Set(normalizedData.blockTemplates.map(template => template.id))
+  const blockIds = new Set(normalizedData.timeBlocks.map(block => block.id))
+  const blockSignatures = new Set(normalizedData.timeBlocks.map(block => `${block.date}|${block.startTime}|${block.endTime}|${block.title}`))
   const newBlocks = courseBlocks.filter(block => !blockIds.has(block.id) && !blockSignatures.has(`${block.date}|${block.startTime}|${block.endTime}|${block.title}`))
   return {
-    ...data,
-    settings: { ...data.settings, fall2026CoursesImported: true },
-    blockTemplates: [...data.blockTemplates, ...courseTemplates.filter(template => !templateIds.has(template.id))],
-    timeBlocks: [...data.timeBlocks, ...newBlocks],
+    ...normalizedData,
+    settings: { ...normalizedData.settings, fall2026CoursesImported: true },
+    blockTemplates: [...normalizedData.blockTemplates, ...courseTemplates.filter(template => !templateIds.has(template.id))],
+    timeBlocks: [...normalizedData.timeBlocks, ...newBlocks],
   }
 }
 
