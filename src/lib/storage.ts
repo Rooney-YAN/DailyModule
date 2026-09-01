@@ -66,7 +66,7 @@ const courseTemplateSeeds: CourseTemplateSeed[] = [
 const courseTemplates: BlockTemplate[] = courseTemplateSeeds.map(template => ({
   ...template,
   categoryId: 'study',
-  priority: 'high',
+  priority: 'medium',
   isFixed: true,
   canMove: false,
   canSplit: false,
@@ -137,7 +137,7 @@ const courseBlocks: TimeBlock[] = courseMeetings.flatMap(meeting => {
     categoryId: 'study',
     color: template.color,
     icon: template.icon,
-    priority: 'high' as const,
+    priority: 'medium' as const,
     note,
     status: 'pending' as const,
     isFixed: true,
@@ -154,8 +154,8 @@ export function applyFall2026CourseSchedule(data: PlannerData): PlannerData {
   const courseTemplateIds = new Set(courseTemplates.map(template => template.id))
   const normalizedData: PlannerData = {
     ...data,
-    blockTemplates: data.blockTemplates.map(template => courseTemplateIds.has(template.id) ? { ...template, icon: '' } : template),
-    timeBlocks: data.timeBlocks.map(block => block.id.startsWith('fall-2026-course-') ? { ...block, icon: '' } : block),
+    blockTemplates: data.blockTemplates.map(template => courseTemplateIds.has(template.id) ? { ...template, icon: '', priority: 'medium' } : template),
+    timeBlocks: data.timeBlocks.map(block => block.id.startsWith('fall-2026-course-') ? { ...block, icon: '', priority: 'medium' } : block),
   }
   if (normalizedData.settings.fall2026CoursesImported) return normalizedData
   const templateIds = new Set(normalizedData.blockTemplates.map(template => template.id))

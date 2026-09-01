@@ -87,7 +87,8 @@ const timeFromMinutes = (minutes: number) => {
   return `${String(hours).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
 }
 
-const snapMinutes = (minutes: number) => Math.round(minutes / 15) * 15
+const TIME_STEP = 10
+const snapMinutes = (minutes: number) => Math.round(minutes / TIME_STEP) * TIME_STEP
 
 const formatDuration = (minutes: number) => {
   const hours = Math.floor(minutes / 60)
@@ -102,7 +103,7 @@ function findAvailableStart(desired: number, blockDuration: number, blocks: Time
   const preferred = Math.max(dayStart, Math.min(latestStart, snapMinutes(desired)))
   const occupied = blocks.filter(block => block.id !== ignoreId).map(block => [timeToMinutes(block.startTime), timeToMinutes(block.endTime)] as const)
   const fits = (start: number) => occupied.every(([otherStart, otherEnd]) => start + blockDuration <= otherStart || start >= otherEnd)
-  for (let distance = 0; distance <= dayEnd - dayStart; distance += 15) {
+  for (let distance = 0; distance <= dayEnd - dayStart; distance += TIME_STEP) {
     const later = preferred + distance
     if (later <= latestStart && fits(later)) return later
     const earlier = preferred - distance
@@ -286,7 +287,7 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
   const timelineEnd = 24 * 60
   const hourHeight = 96
   const timelineHeight = (timelineEnd - timelineStart) / 60 * hourHeight
-  const ticks = Array.from({ length: (timelineEnd - timelineStart) / 15 + 1 }, (_, index) => timelineStart + index * 15)
+  const ticks = Array.from({ length: (timelineEnd - timelineStart) / TIME_STEP + 1 }, (_, index) => timelineStart + index * TIME_STEP)
   const getMinutesFromPointer = (clientY: number, element: HTMLElement) => {
     const rect = element.getBoundingClientRect()
     return snapMinutes(timelineStart + (clientY - rect.top) / hourHeight * 60)
@@ -326,7 +327,7 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
       <aside className="module-dock">
         <div className="module-dock-head"><div><span className="eyebrow">{t.templates}</span><h3>{language === 'zh' ? '模块库' : 'Module library'}</h3></div><button className="module-add" onClick={onNewTemplate}><CirclePlus />{language === 'zh' ? '新建' : 'New'}</button></div>
         <div className="module-stack">{templates.map(template => <article
-          className={`module-piece ${armedTemplateId === template.id ? 'armed' : ''}`}
+          className={`module-piece ${template.icon ? '' : 'no-symbol'} ${armedTemplateId === template.id ? 'armed' : ''}`}
           style={{ '--module': template.color } as React.CSSProperties}
           draggable
           onDragStart={event => {
@@ -339,7 +340,7 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
           onDragEnd={() => { setDraggingPayload(undefined); setDragPreview(undefined) }}
           onClick={() => setArmedTemplateId(current => current === template.id ? undefined : template.id)}
           key={template.id}
-        ><span className="module-grip" aria-hidden="true">⠿</span><span className="module-symbol">{template.icon}</span><span className="module-copy"><b>{language === 'en' ? template.titleEn : template.title}</b><small>{formatDuration(template.durationMinutes)}</small></span><span className="module-tools"><button type="button" draggable={false} onClick={event => { event.stopPropagation(); onEditTemplate(template) }} aria-label={language === 'zh' ? '修改模块' : 'Edit module'}><Pencil /></button><button type="button" draggable={false} onClick={event => { event.stopPropagation(); removeTemplate(template) }} aria-label={language === 'zh' ? '删除模块' : 'Delete module'}><Trash2 /></button></span></article>)}</div>
+        ><span className="module-grip" aria-hidden="true">⠿</span>{template.icon && <span className="module-symbol">{template.icon}</span>}<span className="module-copy"><b>{language === 'en' ? template.titleEn : template.title}</b><small>{formatDuration(template.durationMinutes)}</small></span><span className="module-tools"><button type="button" draggable={false} onClick={event => { event.stopPropagation(); onEditTemplate(template) }} aria-label={language === 'zh' ? '修改模块' : 'Edit module'}><Pencil /></button><button type="button" draggable={false} onClick={event => { event.stopPropagation(); removeTemplate(template) }} aria-label={language === 'zh' ? '删除模块' : 'Delete module'}><Trash2 /></button></span></article>)}</div>
       </aside>
       <section className={`schedule-board ${armedTemplateId ? 'placing' : ''}`}>
         <div className="schedule-instructions"><span>{editMode ? (language === 'zh' ? '拖动已安排模块可重新排期' : 'Drag scheduled blocks to reschedule') : (language === 'zh' ? '开启编辑模式后可移动已有模块' : 'Turn on edit mode to move scheduled blocks')}</span>{armedTemplateId && <b>{language === 'zh' ? '点击时间轴放置选中的模块' : 'Click the timeline to place the selected module'}</b>}</div>
@@ -370,9 +371,9 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
             setDraggingPayload(undefined)
           }}
         >
-          {ticks.map(tick => <div className={`schedule-tick ${tick % 60 === 0 ? 'major' : tick % 30 === 0 ? 'half' : 'quarter'}`} style={{ top: (tick - timelineStart) / 60 * hourHeight }} key={tick}><time>{timeFromMinutes(tick)}</time><span /></div>)}
+          {ticks.map(tick => <div className={`schedule-tick ${tick % 60 === 0 ? 'major' : tick % 30 === 0 ? 'half' : 'minor'}`} style={{ top: (tick - timelineStart) / 60 * hourHeight }} key={tick}><time>{timeFromMinutes(tick)}</time><span /></div>)}
           {dragPreview && <div className="schedule-ghost" style={{ top: (dragPreview.start - timelineStart) / 60 * hourHeight, height: dragPreview.duration / 60 * hourHeight }}><strong>{timeFromMinutes(dragPreview.start)} — {timeFromMinutes(dragPreview.start + dragPreview.duration)}</strong></div>}
-          {blocks.length === 0 && <div className="schedule-empty"><CirclePlus /><b>{language === 'zh' ? '把左侧模块拖到这里' : 'Drag a module here'}</b><span>{language === 'zh' ? '时间会自动吸附到 15 分钟刻度' : 'Time snaps to 15-minute intervals'}</span></div>}
+          {blocks.length === 0 && <div className="schedule-empty"><CirclePlus /><b>{language === 'zh' ? '把左侧模块拖到这里' : 'Drag a module here'}</b><span>{language === 'zh' ? '时间会自动吸附到 10 分钟刻度' : 'Time snaps to 10-minute intervals'}</span></div>}
           {blocks.map(block => <article
             tabIndex={0}
             draggable={editMode && block.canMove}
@@ -390,7 +391,7 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
             onKeyDown={event => {
               if (!editMode || !['ArrowUp', 'ArrowDown'].includes(event.key)) return
               event.preventDefault()
-              const delta = (event.altKey ? 5 : event.shiftKey ? 60 : 15) * (event.key === 'ArrowDown' ? 1 : -1)
+              const delta = (event.shiftKey ? 60 : TIME_STEP) * (event.key === 'ArrowDown' ? 1 : -1)
               moveBlock(block, timeToMinutes(block.startTime) + delta)
             }}
             key={block.id}
@@ -462,14 +463,14 @@ function MonthView({ data, selectedDate, language, conflicts, setSelectedDate, s
   const [month, setMonth] = useState(selectedDate)
   return <>
     <section className="month-head"><div><h1>{monthLabel(month, language)}</h1></div><div><button className="ghost icon" onClick={() => setMonth(iso(subMonths(parseISO(month), 1)))}><ChevronLeft /></button><button className="ghost icon" onClick={() => setMonth(iso(addMonths(parseISO(month), 1)))}><ChevronRight /></button></div></section>
-    <div className="calendar-grid calendar-labels">{(language === 'zh' ? ['一','二','三','四','五','六','日'] : ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']).map(label => <span key={label}>{label}</span>)}</div>
+    <div className="calendar-scroll"><div className="calendar-grid calendar-labels">{(language === 'zh' ? ['一','二','三','四','五','六','日'] : ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']).map(label => <span key={label}>{label}</span>)}</div>
     <div className="calendar-grid">{monthDays(month).map(day => {
-      const date = iso(day); const blocks = data.timeBlocks.filter(block => block.date === date); const completed = blocks.filter(block => block.status === 'completed').length
+      const date = iso(day); const blocks = data.timeBlocks.filter(block => block.date === date).sort((a, b) => a.startTime.localeCompare(b.startTime)); const completed = blocks.filter(block => block.status === 'completed').length
       return <button key={date} className={`calendar-day ${!isSameMonth(day, parseISO(month)) ? 'outside' : ''} ${date === iso(new Date()) ? 'today-cell' : ''}`} onClick={() => { setSelectedDate(date); setView('day') }}>
-        <span className="day-number">{format(day, 'd')}</span><div>{blocks.slice(0, 3).map(block => <span className={`calendar-block ${conflicts.has(block.id) ? 'conflicting' : ''}`} key={block.id} style={{ '--block': block.color } as React.CSSProperties}>{block.title}</span>)}</div>
+        <span className="day-number">{format(day, 'd')}</span><div>{blocks.map(block => <span className={`calendar-block ${conflicts.has(block.id) ? 'conflicting' : ''}`} key={block.id} style={{ '--block': block.color } as React.CSSProperties} title={`${block.startTime} ${block.title}`}>{block.startTime} {block.title}</span>)}</div>
         {blocks.length > 0 && <small>{completed}/{blocks.length} · {Math.round(blocks.reduce((sum, block) => sum + duration(block.startTime, block.endTime), 0) / 60 * 10) / 10}h</small>}
       </button>
-    })}</div>
+    })}</div></div>
   </>
 }
 
@@ -491,7 +492,7 @@ function TimeRangePicker({ startTime, endTime, language, onChange }: {
 }) {
   const min = 0
   const max = 24 * 60
-  const step = 15
+  const step = TIME_STEP
   const start = Math.min(timeToMinutes(startTime), max - step)
   const end = Math.max(Math.min(timeToMinutes(endTime), max), start + step)
   const startPercent = start / max * 100
@@ -541,7 +542,7 @@ function TimeRangePicker({ startTime, endTime, language, onChange }: {
       />
     </div>
     <div className="time-ticks" aria-hidden="true"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
-    <p className="time-picker-hint">{language === 'zh' ? '拖动两个圆点调整时间，每次 15 分钟。' : 'Drag either handle to adjust in 15-minute steps.'}</p>
+    <p className="time-picker-hint">{language === 'zh' ? '拖动两个圆点调整时间，每次 10 分钟。' : 'Drag either handle to adjust in 10-minute steps.'}</p>
   </section>
 }
 
