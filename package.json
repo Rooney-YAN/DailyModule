@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "lint": "tsc -b --pretty false",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
     "news:generate": "node scripts/generate-news.mjs",
     "preview": "vite preview"
   },

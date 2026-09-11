@@ -1,8 +1,10 @@
 export type View = 'month' | 'week' | 'day' | 'now' | 'news' | 'settings'
 export type Language = 'zh' | 'en'
 export type Theme = 'system' | 'light' | 'dark'
-export type Status = 'pending' | 'completed' | 'skipped' | 'conflict'
+export type Status = 'pending' | 'partial' | 'completed' | 'skipped' | 'conflict'
 export type Priority = 'low' | 'medium' | 'high'
+export type WeeklyMode = 'normal' | 'busy' | 'crunch' | 'deload'
+export type TrackKind = 'goal' | 'infrastructure' | 'leisure'
 
 export type Category = {
   id: string
@@ -30,6 +32,11 @@ export type TimeBlock = {
   canSplit: boolean
   canBeOverridden: boolean
   templateId?: string
+  trackId?: string
+  completedMinutes?: number
+  source?: 'ics'
+  sourceUid?: string
+  recurrenceId?: string
   createdAt: string
   updatedAt: string
 }
@@ -49,6 +56,44 @@ export type BlockTemplate = {
   canBeOverridden: boolean
   isBuiltIn: boolean
   isHidden: boolean
+  trackId?: string
+}
+
+export type Track = {
+  id: string
+  name: string
+  nameEn: string
+  color: string
+  kind: TrackKind
+  weeklyFloorMinutes: number
+  weeklyTargetMinutes: number
+  important: boolean
+  urgent: boolean
+}
+
+export type WeeklyPlan = {
+  weekStart: string
+  mode: WeeklyMode
+  floorMultiplier: number
+  flexBudgetMinutes: number
+  flexAllocations: Record<string, number>
+  topOutcomes: string[]
+  courseDeadlines: string
+  ieltsFocus: string
+  uropOutput: string
+  primaryFocusTrackId?: string
+  secondaryFocusTrackId?: string
+  reviewCompletedAt?: string
+  midweekCheckedAt?: string
+  planningDismissedDate?: string
+  midweekDismissedDate?: string
+}
+
+export type CalendarImport = {
+  id: string
+  fileName: string
+  importedAt: string
+  eventCount: number
 }
 
 export type SummerPhase = {
@@ -69,13 +114,25 @@ export type Settings = {
   countLifeBlocks: boolean
   defaultView: 'day' | 'now'
   fall2026CoursesImported?: boolean
+  modeFloorMultipliers: Record<WeeklyMode, number>
+  reminders: {
+    planningEnabled: boolean
+    planningWeekday: number
+    planningHour: number
+    midweekEnabled: boolean
+    midweekWeekday: number
+    midweekHour: number
+  }
 }
 
 export type PlannerData = {
-  schemaVersion: 1
+  schemaVersion: 2
   settings: Settings
   categories: Category[]
   blockTemplates: BlockTemplate[]
   timeBlocks: TimeBlock[]
   summerPhases: SummerPhase[]
+  tracks: Track[]
+  weeklyPlans: Record<string, WeeklyPlan>
+  calendarImports: CalendarImport[]
 }
