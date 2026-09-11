@@ -132,7 +132,7 @@ export function parseIcsCalendar(source: string): IcsImportResult {
         title: summary, titleEn: summary, date, startTime: start.time, endTime: `${pad(Math.floor(endMinutes / 60))}:${pad(endMinutes % 60)}`,
         categoryId: 'study', color: '#5876de', priority: 'medium', note, status: 'pending', isFixed: true,
         canMove: false, canSplit: false, canBeOverridden: false, templateId, trackId: 'courses', source: 'ics', sourceUid: uid,
-        recurrenceId, createdAt: now, updatedAt: now,
+        recurrenceId, countsTowardWeeklyCapacity: false, createdAt: now, updatedAt: now,
       }
       const existing = occurrences.get(signature)
       if (!existing) occurrences.set(signature, block)

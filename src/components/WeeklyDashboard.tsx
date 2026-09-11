@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Check, ChevronDown, Flag, Gauge, SlidersHorizontal, X } from 'lucide-react'
-import type { PlannerData, Track, WeeklyMode, WeeklyPlan } from '../types'
-import { createWeeklyPlan, effectiveFloor, flexSummary, trackProgress, weekBlocks, weekKey } from '../lib/weekly'
+import { addDays, format, parseISO } from 'date-fns'
+import { Check, Ellipsis, Flag, Gauge, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import type { PlannerData, Track, WeeklyCommitment, WeeklyMode, WeeklyPlan } from '../types'
+import {
+  WORK_TRACK_IDS, allocatedFlex, baseFlex, canAllocateFlex, completedTrackedMinutes, createWeeklyPlan, effectiveFloor, isTrackedWorkBlock,
+  overcommitAmount, plannedTrackedTotal, protectedTotal, trackProgress, unallocatedFlex, weekBlocks, weekKey, weeklyCapacity,
+} from '../lib/weekly'
 
 const modeLabels: Record<WeeklyMode, { zh: string; en: string }> = {
   normal: { zh: '正常', en: 'Normal' }, busy: { zh: '忙碌', en: 'Busy' }, crunch: { zh: '冲刺', en: 'Crunch' }, deload: { zh: '减载', en: 'Deload' },
 }
-const hours = (minutes: number) => `${Math.round(minutes / 6) / 10}h`
+const sizeLabels = { small: { zh: '小', en: 'Small' }, medium: { zh: '中', en: 'Medium' }, major: { zh: '重要', en: 'Major' } } as const
+const hours = (minutes: number) => `${Math.round(Math.max(0, minutes) / 6) / 10}h`
 
 export default function WeeklyDashboard({ data, setData, selectedDate, language, reviewRequested = false, onReviewOpened }: {
   data: PlannerData
@@ -17,80 +22,129 @@ export default function WeeklyDashboard({ data, setData, selectedDate, language,
   onReviewOpened?: () => void
 }) {
   const start = weekKey(selectedDate)
-  const fallbackPlan = createWeeklyPlan(start, 'normal', data.settings.modeFloorMultipliers.normal)
+  const end = format(addDays(parseISO(start), 6), 'yyyy-MM-dd')
+  const fallbackPlan = createWeeklyPlan(start)
   const plan = data.weeklyPlans[start] ?? fallbackPlan
+  const workTracks = WORK_TRACK_IDS.map(id => data.tracks.find(track => track.id === id)).filter((track): track is Track => !!track)
   const blocks = useMemo(() => weekBlocks(data.timeBlocks, start), [data.timeBlocks, start])
   const [reviewOpen, setReviewOpen] = useState(false)
-  const [goalsOpen, setGoalsOpen] = useState(false)
+  const [menuTrackId, setMenuTrackId] = useState<string>()
+  const [doneEarlyTrackId, setDoneEarlyTrackId] = useState<string>()
+  const [removeFuture, setRemoveFuture] = useState(false)
+  const [adjustTrackId, setAdjustTrackId] = useState<string>()
+  const [adjustFloorHours, setAdjustFloorHours] = useState(0)
+  const [opportunityOpen, setOpportunityOpen] = useState(false)
+  const [opportunityTarget, setOpportunityTarget] = useState('urop')
+  const [opportunityHours, setOpportunityHours] = useState(1)
+  const [releases, setReleases] = useState<Record<string, number>>({})
+  const [commitmentDraft, setCommitmentDraft] = useState<WeeklyCommitment>()
+  const [flexWarning, setFlexWarning] = useState('')
+
   useEffect(() => {
     if (reviewRequested) { setReviewOpen(true); onReviewOpened?.() }
   }, [reviewRequested, onReviewOpened])
-  const flex = flexSummary(plan)
-  const base = data.tracks.reduce((sum, track) => sum + effectiveFloor(track, plan), 0)
+
+  const capacity = weeklyCapacity(plan, data.settings.baseWeeklyCapacityMinutes)
+  const protectedMinutes = protectedTotal(workTracks, plan, data.settings)
+  const availableFlex = baseFlex(capacity, protectedMinutes)
+  const allocated = allocatedFlex(plan)
+  const freeFlex = unallocatedFlex(availableFlex, allocated)
+  const planned = plannedTrackedTotal(blocks)
+  const completed = completedTrackedMinutes(blocks)
+  const overcommitted = overcommitAmount(planned, capacity)
+  const protectedOvercommit = Math.max(0, protectedMinutes - capacity)
+  const outcomes = [...(plan.topOutcomes ?? []), '', '', ''].slice(0, 3)
+  const focus = workTracks.find(track => track.id === plan.primaryFocusTrackId)
+  const weekLabel = `${format(parseISO(start), language === 'zh' ? 'M月d日' : 'MMM d')} – ${format(parseISO(end), language === 'zh' ? 'M月d日' : 'MMM d')}`
+  const upcoming = [...plan.commitments].sort((a, b) => a.dueAt.localeCompare(b.dueAt)).slice(0, 5)
 
   const patchPlan = (patch: Partial<WeeklyPlan>) => setData(current => ({
     ...current,
     weeklyPlans: { ...current.weeklyPlans, [start]: { ...(current.weeklyPlans[start] ?? fallbackPlan), ...patch } },
   }))
-  const patchTrack = (id: string, patch: Partial<Track>) => setData(current => ({
-    ...current, tracks: current.tracks.map(track => track.id === id ? { ...track, ...patch } : track),
-  }))
   const setMode = (mode: WeeklyMode) => {
-    const multiplier = data.settings.modeFloorMultipliers[mode]
-    const apply = window.confirm(language === 'zh'
-      ? `切换为“${modeLabels[mode].zh}”模式。是否将本周 Floor 系数设为 ${Math.round(multiplier * 100)}%？不会改动已安排模块。`
-      : `Switch to ${modeLabels[mode].en}. Apply the recommended ${Math.round(multiplier * 100)}% Floor multiplier? Existing blocks will not change.`)
-    patchPlan(apply ? { mode, floorMultiplier: multiplier } : { mode })
+    const nextPlan = { ...plan, mode }
+    const nextProtected = protectedTotal(workTracks, nextPlan, data.settings)
+    const nextFlex = baseFlex(weeklyCapacity(nextPlan, data.settings.baseWeeklyCapacityMinutes), nextProtected)
+    let remaining = nextFlex
+    const flexAllocations: Record<string, number> = {}
+    WORK_TRACK_IDS.forEach(id => { const kept = Math.min(Math.max(0, plan.flexAllocations[id] ?? 0), remaining); flexAllocations[id] = kept; remaining -= kept })
+    patchPlan({ mode, flexAllocations })
   }
-  const outcomes = plan.topOutcomes.length === 3 ? plan.topOutcomes : [...plan.topOutcomes, '', '', ''].slice(0, 3)
+  const setAllocation = (trackId: string, requestedMinutes: number) => {
+    const next = Math.max(0, Math.round(requestedMinutes / 30) * 30)
+    if (!canAllocateFlex(plan, availableFlex, trackId, next)) {
+      setFlexWarning(language === 'zh' ? 'Flex 分配不能超过当前可用 Flex。' : 'Flex allocation cannot exceed available Flex.')
+      return
+    }
+    setFlexWarning('')
+    patchPlan({ flexAllocations: { ...plan.flexAllocations, [trackId]: next } })
+  }
+  const saveCommitment = (commitment: WeeklyCommitment) => {
+    const exists = plan.commitments.some(item => item.id === commitment.id)
+    patchPlan({ commitments: exists ? plan.commitments.map(item => item.id === commitment.id ? commitment : item) : [...plan.commitments, commitment] })
+    setCommitmentDraft(undefined)
+  }
+  const removeCommitment = (id: string) => patchPlan({ commitments: plan.commitments.filter(item => item.id !== id) })
+  const doneTrack = doneEarlyTrackId ? workTracks.find(track => track.id === doneEarlyTrackId) : undefined
+  const doneProgress = doneTrack ? trackProgress(doneTrack, plan, blocks, data.settings) : undefined
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const futureBlocks = doneTrack ? blocks.filter(block => block.trackId === doneTrack.id && isTrackedWorkBlock(block) && block.date >= today && !['completed', 'skipped'].includes(block.status)) : []
+  const futureMinutes = futureBlocks.reduce((sum, block) => sum + (Number(block.endTime.slice(0, 2)) * 60 + Number(block.endTime.slice(3)) - Number(block.startTime.slice(0, 2)) * 60 - Number(block.startTime.slice(3))), 0)
+  const confirmDoneEarly = () => {
+    if (!doneTrack || !doneProgress) return
+    const nextFloor = Math.min(doneProgress.floor, doneProgress.completed)
+    setData(current => {
+      const currentPlan = current.weeklyPlans[start] ?? fallbackPlan
+      return {
+        ...current,
+        weeklyPlans: { ...current.weeklyPlans, [start]: { ...currentPlan, floorOverrides: { ...currentPlan.floorOverrides, [doneTrack.id]: nextFloor }, flexAllocations: { ...currentPlan.flexAllocations, [doneTrack.id]: 0 } } },
+        timeBlocks: removeFuture ? current.timeBlocks.filter(block => !futureBlocks.some(future => future.id === block.id)) : current.timeBlocks,
+      }
+    })
+    setDoneEarlyTrackId(undefined); setRemoveFuture(false)
+  }
+  const opportunityNeed = Math.max(0, opportunityHours * 60 - freeFlex)
+  const released = Object.values(releases).reduce((sum, value) => sum + Math.max(0, value), 0)
+  const sourceTracks = [...workTracks.filter(track => track.id !== opportunityTarget)].sort((a, b) => {
+    const order = ['cuda', 'stocklens', 'urop', 'ielts', 'courses']; return order.indexOf(a.id) - order.indexOf(b.id)
+  })
+  const applyOpportunity = () => {
+    const requested = opportunityHours * 60
+    if (requested <= 0 || released < opportunityNeed) return
+    const floorOverrides = { ...plan.floorOverrides }
+    sourceTracks.forEach(track => { const release = Math.min(effectiveFloor(track, plan, data.settings), releases[track.id] ?? 0); if (release > 0) floorOverrides[track.id] = effectiveFloor(track, plan, data.settings) - release })
+    patchPlan({ floorOverrides, flexAllocations: { ...plan.flexAllocations, [opportunityTarget]: (plan.flexAllocations[opportunityTarget] ?? 0) + requested } })
+    setOpportunityOpen(false); setReleases({}); setOpportunityHours(1)
+  }
 
   return <section className="weekly-dashboard">
-    <div className="weekly-dashboard-head">
-      <div><span className="eyebrow">{language === 'zh' ? '周执行面板' : 'Weekly execution'}</span><h1>{language === 'zh' ? '守住底线，灵活投入' : 'Protect the floor, direct the flex'}</h1></div>
-      <div className="weekly-head-actions">
-        <label className={`mode-badge mode-${plan.mode}`}><Gauge /><select value={plan.mode} onChange={event => setMode(event.target.value as WeeklyMode)}>{(Object.keys(modeLabels) as WeeklyMode[]).map(mode => <option value={mode} key={mode}>{modeLabels[mode][language]}</option>)}</select></label>
-        <button className="primary" onClick={() => setReviewOpen(true)}>{plan.reviewCompletedAt ? <Check /> : <Flag />}{language === 'zh' ? (plan.reviewCompletedAt ? '已规划' : '5 分钟周规划') : (plan.reviewCompletedAt ? 'Planned' : '5-min review')}</button>
-      </div>
-    </div>
+    <div className="weekly-dashboard-head"><div><span className="eyebrow">{language === 'zh' ? '周执行面板' : 'Weekly execution'}</span><h1>{language === 'zh' ? '守住底线，灵活投入' : 'Protect the floor, direct the flex'}</h1><p>{weekLabel}</p></div><div className="weekly-head-actions"><label className={`mode-badge mode-${plan.mode}`}><Gauge /><select value={plan.mode} onChange={event => setMode(event.target.value as WeeklyMode)}>{(Object.keys(modeLabels) as WeeklyMode[]).map(mode => <option value={mode} key={mode}>{modeLabels[mode][language]}</option>)}</select></label>{focus && <span className="focus-badge">FOCUS · {language === 'zh' ? focus.name : focus.nameEn}</span>}<button className="primary" onClick={() => setReviewOpen(true)}>{plan.reviewCompletedAt ? <Check /> : <Flag />}{language === 'zh' ? (plan.reviewCompletedAt ? '本周已规划' : '本周规划') : (plan.reviewCompletedAt ? 'Week planned' : 'Plan week')}</button></div></div>
 
-    <div className="weekly-summary-strip">
-      <div><span>{language === 'zh' ? '基础 Floor' : 'Base floor'}</span><strong>{hours(base)}</strong></div>
-      <div><span>{language === 'zh' ? 'Flex 已分配' : 'Flex allocated'}</span><strong>{hours(flex.allocated)} / {hours(plan.flexBudgetMinutes)}</strong></div>
-      <div className={flex.remaining < 0 ? 'negative' : ''}><span>{language === 'zh' ? 'Flex 剩余' : 'Flex remaining'}</span><strong>{hours(flex.remaining)}</strong></div>
-      <div><span>{language === 'zh' ? '周中检查' : 'Midweek check'}</span><button className="text-action" onClick={() => patchPlan({ midweekCheckedAt: plan.midweekCheckedAt ? undefined : new Date().toISOString() })}>{plan.midweekCheckedAt ? `✓ ${language === 'zh' ? '已完成' : 'Done'}` : language === 'zh' ? '待完成' : 'Not done'}</button></div>
-    </div>
+    <div className="weekly-summary-strip resource-summary"><div><span>Capacity</span><strong>{hours(capacity)}</strong></div><div className={protectedOvercommit ? 'negative' : ''}><span>Protected</span><strong>{hours(protectedMinutes)}</strong><small>{protectedOvercommit ? `${language === 'zh' ? '超出容量' : 'Overcommitted by'} ${hours(protectedOvercommit)}` : language === 'zh' ? '受保护预算' : 'protected budget'}</small></div><div><span>Flex</span><strong>{hours(availableFlex)}</strong><small>{hours(freeFlex)} {language === 'zh' ? '未分配' : 'unallocated'}</small></div><div className={overcommitted ? 'negative' : ''}><span>Planned</span><strong>{hours(planned)} / {hours(capacity)}</strong><small>{overcommitted ? `${language === 'zh' ? '超额' : 'Overcommitted'} ${hours(overcommitted)}` : language === 'zh' ? '健康' : 'Healthy'}</small></div></div>
 
-    <div className="weekly-dashboard-grid">
-      <div className="weekly-panel floor-panel"><header><div><span className="eyebrow">Weekly Floor / Target</span><h2>{language === 'zh' ? '目标投入' : 'Goal progress'}</h2></div><button className="secondary compact-button" onClick={() => setGoalsOpen(current => !current)}><SlidersHorizontal />{language === 'zh' ? '设置' : 'Edit'}<ChevronDown /></button></header>
-        <div className="track-progress-list">{data.tracks.map(track => {
-          const progress = trackProgress(track, plan, blocks)
-          const denominator = Math.max(progress.target, progress.floor, 1)
-          return <div className={`track-progress ${progress.targetReached ? 'target-reached' : progress.floorReached ? 'floor-reached' : ''}`} key={track.id}>
-            <div className="track-progress-title"><i style={{ background: track.color }} /><b>{language === 'zh' ? track.name : track.nameEn}</b><span>{track.kind === 'infrastructure' ? (language === 'zh' ? '基础设施' : 'Infrastructure') : ''}</span>{track.important && <em>I</em>}{track.urgent && <em className="urgent">U</em>}</div>
-            <div className="track-bars"><span style={{ width: `${Math.min(100, progress.completed / denominator * 100)}%`, background: track.color }} /></div>
-            <small>{hours(progress.completed)} / {hours(progress.floor)} Floor　·　{hours(progress.completed)} / {hours(progress.target)} Target　·　{language === 'zh' ? '计划' : 'planned'} {hours(progress.planned)}</small>
-          </div>
-        })}</div>
-      </div>
+    <div className="weekly-dashboard-grid allocation-layout"><div className="weekly-panel allocation-panel"><span className="eyebrow">Resource allocation</span><h2>{language === 'zh' ? '本周工作预算' : 'Weekly work budget'}</h2><div className="track-progress-list">{workTracks.map(track => {
+      const progress = trackProgress(track, plan, blocks, data.settings)
+      const denominator = Math.max(progress.budget, 1)
+      const completedWidth = Math.min(100, progress.completed / denominator * 100)
+      const scheduledWidth = Math.min(100 - completedWidth, Math.max(0, progress.scheduled - progress.completed) / denominator * 100)
+      return <div className={`track-progress track-status-${progress.status}`} key={track.id}><div className="track-progress-title"><i style={{ background: track.color }} /><b>{language === 'zh' ? track.name : track.nameEn}</b><span className="track-state">{progress.status === 'done' ? 'DONE' : progress.status === 'covered' ? 'COVERED' : 'UNSCHEDULED'}</span><div className="track-menu"><button className="ellipsis-button" onClick={() => setMenuTrackId(current => current === track.id ? undefined : track.id)} aria-label={language === 'zh' ? 'Track 操作' : 'Track actions'}><Ellipsis /></button>{menuTrackId === track.id && <div className="track-menu-popover"><button onClick={() => { setDoneEarlyTrackId(track.id); setMenuTrackId(undefined) }}>{language === 'zh' ? '本周提前完成' : 'Done early'}</button><button onClick={() => { setAdjustTrackId(track.id); setAdjustFloorHours(progress.floor / 60); setMenuTrackId(undefined) }}>{language === 'zh' ? '调整本周 Floor' : "Adjust this week's Floor"}</button></div>}</div></div><div className="track-bars segmented-track"><span className="completed-segment" style={{ width: `${completedWidth}%`, background: track.color }} /><span className="scheduled-segment" style={{ width: `${scheduledWidth}%`, background: track.color }} /></div><div className="track-numbers"><span><b>{hours(progress.completed)}</b> {language === 'zh' ? '完成' : 'done'}</span><span>{hours(progress.floor)} {language === 'zh' ? '保护' : 'protected'}</span><span>{progress.flex ? `+${hours(progress.flex)} flex` : '— flex'}</span><span>{hours(progress.budget)} budget</span><span>{hours(progress.scheduled)} {language === 'zh' ? '已排' : 'scheduled'}</span>{progress.need > 0 && <strong>NEED {hours(progress.need)}</strong>}</div></div>
+    })}</div></div>
 
-      <div className="weekly-panel outcomes-panel"><span className="eyebrow">Top outcomes</span><h2>{language === 'zh' ? '本周最重要的结果' : 'Most important outcomes'}</h2>
-        <ol>{outcomes.map((outcome, index) => <li key={index}>{outcome || (language === 'zh' ? `结果 ${index + 1} 尚未填写` : `Outcome ${index + 1} not set`)}</li>)}</ol>
-        <div className="focus-readout"><span>{language === 'zh' ? '主攻' : 'Primary'}</span><b>{data.tracks.find(track => track.id === plan.primaryFocusTrackId)?.[language === 'zh' ? 'name' : 'nameEn'] ?? '—'}</b><span>{language === 'zh' ? '副线' : 'Secondary'}</span><b>{data.tracks.find(track => track.id === plan.secondaryFocusTrackId)?.[language === 'zh' ? 'name' : 'nameEn'] ?? '—'}</b></div>
-      </div>
-    </div>
+    <aside className="weekly-panel this-week-panel"><span className="eyebrow">This week</span><h2>Top Outcomes</h2><ol>{outcomes.map((outcome, index) => <li key={index}>{outcome || '—'}</li>)}</ol><div className="upcoming-head"><div><span className="eyebrow">Upcoming</span><h2>{language === 'zh' ? '近期事项' : 'Commitments'}</h2></div><button className="module-add" onClick={() => setCommitmentDraft({ id: crypto.randomUUID(), title: '', dueAt: `${start}T23:59`, size: 'medium', done: false })}><Plus />{language === 'zh' ? '添加' : 'Add'}</button></div><div className="commitment-list">{upcoming.length ? upcoming.map(item => <div className={`commitment-item ${item.done ? 'done' : ''}`} key={item.id}><button className="commitment-check" onClick={() => saveCommitment({ ...item, done: !item.done })}>{item.done ? <Check /> : ''}</button><button className="commitment-copy" onClick={() => setCommitmentDraft(item)}><b>{item.title}</b><small>{item.dueAt.replace('T', ' · ')} · {sizeLabels[item.size][language]}</small></button><button className="commitment-delete" onClick={() => removeCommitment(item.id)}><Trash2 /></button></div>) : <p className="quiet-empty">{language === 'zh' ? '暂无近期 Deadline' : 'No upcoming commitments'}</p>}</div></aside></div>
 
-    <div className="flex-panel"><div><span className="eyebrow">Flex Pool</span><h2>{language === 'zh' ? '把弹性时间投向本周机会' : 'Direct time toward this week’s opportunities'}</h2></div><label>{language === 'zh' ? '预算（小时）' : 'Budget (hours)'}<input type="number" min="0" step="0.5" value={plan.flexBudgetMinutes / 60} onChange={event => patchPlan({ flexBudgetMinutes: Math.max(0, Number(event.target.value) * 60) })} /></label><div className="flex-allocations">{data.tracks.filter(track => track.kind === 'goal').map(track => <label key={track.id}><span><i style={{ background: track.color }} />{language === 'zh' ? track.name : track.nameEn}</span><input type="number" min="0" step="0.5" value={(plan.flexAllocations[track.id] ?? 0) / 60} onChange={event => patchPlan({ flexAllocations: { ...plan.flexAllocations, [track.id]: Math.max(0, Number(event.target.value) * 60) } })} /><small>h</small></label>)}</div></div>
+    <div className="flex-panel auto-flex"><div><span className="eyebrow">Flex</span><h2>{hours(availableFlex)} total · {hours(allocated)} allocated · {hours(freeFlex)} free</h2></div><div className="flex-allocations">{workTracks.map(track => { const value = plan.flexAllocations[track.id] ?? 0; return <label key={track.id}><span><i style={{ background: track.color }} />{language === 'zh' ? track.name : track.nameEn}</span><span className="flex-stepper"><button onClick={() => setAllocation(track.id, value - 30)}>−</button><b>{value ? `+${hours(value)}` : '—'}</b><button onClick={() => setAllocation(track.id, value + 30)}>+</button></span></label> })}</div><button className="secondary reallocate-button" onClick={() => setOpportunityOpen(true)}><RefreshCw />{language === 'zh' ? '临时重分配' : 'Temporary reallocation'}</button>{flexWarning && <p className="inline-warning">{flexWarning}</p>}</div>
 
-    {goalsOpen && <div className="track-editor"><header><div><span className="eyebrow">Tracks</span><h2>{language === 'zh' ? '每周底线与目标' : 'Weekly floors and targets'}</h2></div><button className="ghost icon" onClick={() => setGoalsOpen(false)}><X /></button></header>{data.tracks.map(track => <div className="track-editor-row" key={track.id}><div><i style={{ background: track.color }} /><b>{language === 'zh' ? track.name : track.nameEn}</b></div><label>Floor <input type="number" min="0" step="0.5" value={track.weeklyFloorMinutes / 60} onChange={event => patchTrack(track.id, { weeklyFloorMinutes: Math.max(0, Number(event.target.value) * 60) })} /> h</label><label>Target <input type="number" min="0" step="0.5" value={track.weeklyTargetMinutes / 60} onChange={event => patchTrack(track.id, { weeklyTargetMinutes: Math.max(0, Number(event.target.value) * 60) })} /> h</label><label className="flag-check"><input type="checkbox" checked={track.important} onChange={event => patchTrack(track.id, { important: event.target.checked })} /> Important</label><label className="flag-check"><input type="checkbox" checked={track.urgent} onChange={event => patchTrack(track.id, { urgent: event.target.checked })} /> Urgent</label></div>)}</div>}
+    {reviewOpen && <div className="modal-backdrop" onMouseDown={event => event.currentTarget === event.target && setReviewOpen(false)}><form className="modal weekly-review" onSubmit={event => { event.preventDefault(); patchPlan({ reviewCompletedAt: new Date().toISOString() }); setReviewOpen(false) }}><header><div><span className="eyebrow">Weekly planning</span><h2>{language === 'zh' ? '5 分钟确定本周资源' : 'Set this week’s resources'}</h2></div><button type="button" className="ghost icon" onClick={() => setReviewOpen(false)}><X /></button></header><div className="form-row"><label>{language === 'zh' ? '运行模式' : 'Mode'}<select value={plan.mode} onChange={event => setMode(event.target.value as WeeklyMode)}>{(Object.keys(modeLabels) as WeeklyMode[]).map(mode => <option value={mode} key={mode}>{modeLabels[mode][language]}</option>)}</select></label><label>{language === 'zh' ? '本周 Capacity（小时）' : 'Weekly capacity (hours)'}<input type="number" min="0" step="0.5" value={capacity / 60} onChange={event => patchPlan({ capacityOverrideMinutes: Math.max(0, Number(event.target.value) * 60) })} /></label></div><fieldset><legend>Top 3 Outcomes</legend>{outcomes.map((outcome, index) => <input key={index} value={outcome} onChange={event => { const next = [...outcomes]; next[index] = event.target.value; patchPlan({ topOutcomes: next }) }} placeholder={`${index + 1}`} />)}</fieldset><fieldset><legend>{language === 'zh' ? 'Upcoming Commitments' : 'Upcoming commitments'}</legend><div className="review-commitments">{plan.commitments.map(item => <button type="button" key={item.id} onClick={() => setCommitmentDraft(item)}>{item.title}<small>{item.dueAt.replace('T', ' · ')}</small></button>)}<button type="button" className="add-commitment-button" onClick={() => setCommitmentDraft({ id: crypto.randomUUID(), title: '', dueAt: `${start}T23:59`, size: 'medium', done: false })}><Plus />{language === 'zh' ? '添加事项' : 'Add commitment'}</button></div></fieldset><fieldset><legend>Flex · {hours(availableFlex)} {language === 'zh' ? '可用' : 'available'} · {hours(freeFlex)} {language === 'zh' ? '未分配' : 'unallocated'}</legend><div className="planning-flex-grid">{workTracks.map(track => { const value = plan.flexAllocations[track.id] ?? 0; return <label key={track.id}>{language === 'zh' ? track.name : track.nameEn}<input type="number" min="0" step="0.5" value={value / 60} onChange={event => setAllocation(track.id, Number(event.target.value) * 60)} /></label> })}</div>{flexWarning && <p className="inline-warning">{flexWarning}</p>}</fieldset><label>{language === 'zh' ? 'Focus Track（可选）' : 'Focus Track (optional)'}<select value={plan.primaryFocusTrackId ?? ''} onChange={event => patchPlan({ primaryFocusTrackId: event.target.value || undefined })}><option value="">—</option>{workTracks.map(track => <option value={track.id} key={track.id}>{language === 'zh' ? track.name : track.nameEn}</option>)}</select></label><footer><button type="button" className="secondary" onClick={() => setReviewOpen(false)}>{language === 'zh' ? '稍后继续' : 'Continue later'}</button><button className="primary"><Check />{language === 'zh' ? '完成本周规划' : 'Complete planning'}</button></footer></form></div>}
 
-    {reviewOpen && <div className="modal-backdrop" onMouseDown={event => event.currentTarget === event.target && setReviewOpen(false)}><form className="modal weekly-review" onSubmit={event => { event.preventDefault(); patchPlan({ reviewCompletedAt: new Date().toISOString() }); setReviewOpen(false) }}><header><div><span className="eyebrow">Weekly planning</span><h2>{language === 'zh' ? '5 分钟确定本周打法' : 'Set the week in five minutes'}</h2></div><button type="button" className="ghost icon" onClick={() => setReviewOpen(false)}><X /></button></header>
-      <fieldset><legend>{language === 'zh' ? '最重要的 3 个结果' : 'Top 3 outcomes'}</legend>{outcomes.map((outcome, index) => <input key={index} value={outcome} onChange={event => { const next = [...outcomes]; next[index] = event.target.value; patchPlan({ topOutcomes: next }) }} placeholder={`${index + 1}`} />)}</fieldset>
-      <div className="form-row"><label>{language === 'zh' ? '本周运行模式' : 'Weekly mode'}<select value={plan.mode} onChange={event => setMode(event.target.value as WeeklyMode)}>{(Object.keys(modeLabels) as WeeklyMode[]).map(mode => <option value={mode} key={mode}>{modeLabels[mode][language]}</option>)}</select></label><label>{language === 'zh' ? 'Flex 预算（小时）' : 'Flex budget (hours)'}<input type="number" min="0" step="0.5" value={plan.flexBudgetMinutes / 60} onChange={event => patchPlan({ flexBudgetMinutes: Math.max(0, Number(event.target.value) * 60) })} /></label></div>
-      <fieldset><legend>{language === 'zh' ? 'Flex 分配（小时）' : 'Flex allocation (hours)'}</legend><div className="review-flex-grid">{data.tracks.filter(track => track.kind === 'goal').map(track => <label key={track.id}>{language === 'zh' ? track.name : track.nameEn}<input type="number" min="0" step="0.5" value={(plan.flexAllocations[track.id] ?? 0) / 60} onChange={event => patchPlan({ flexAllocations: { ...plan.flexAllocations, [track.id]: Math.max(0, Number(event.target.value) * 60) } })} /></label>)}</div></fieldset>
-      <label>{language === 'zh' ? '课程 Deadline / Exam' : 'Course deadlines / exams'}<textarea rows={2} value={plan.courseDeadlines} onChange={event => patchPlan({ courseDeadlines: event.target.value })} /></label>
-      <div className="form-row"><label>IELTS {language === 'zh' ? '本周重点' : 'focus'}<textarea rows={2} value={plan.ieltsFocus} onChange={event => patchPlan({ ieltsFocus: event.target.value })} /></label><label>UROP {language === 'zh' ? '具体产出' : 'concrete output'}<textarea rows={2} value={plan.uropOutput} onChange={event => patchPlan({ uropOutput: event.target.value })} /></label></div>
-      <div className="form-row"><label>{language === 'zh' ? '主攻 Track' : 'Primary focus'}<select value={plan.primaryFocusTrackId ?? ''} onChange={event => patchPlan({ primaryFocusTrackId: event.target.value || undefined })}><option value="">—</option>{data.tracks.map(track => <option value={track.id} key={track.id}>{language === 'zh' ? track.name : track.nameEn}</option>)}</select></label><label>{language === 'zh' ? '副线 Track（可选）' : 'Secondary focus (optional)'}<select value={plan.secondaryFocusTrackId ?? ''} onChange={event => patchPlan({ secondaryFocusTrackId: event.target.value || undefined })}><option value="">—</option>{data.tracks.map(track => <option value={track.id} key={track.id}>{language === 'zh' ? track.name : track.nameEn}</option>)}</select></label></div>
-      <footer><button type="button" className="secondary" onClick={() => setReviewOpen(false)}>{language === 'zh' ? '稍后继续' : 'Continue later'}</button><button className="primary"><Check />{language === 'zh' ? '完成本周规划' : 'Complete review'}</button></footer>
-    </form></div>}
+    {commitmentDraft && <CommitmentModal commitment={commitmentDraft} language={language} onClose={() => setCommitmentDraft(undefined)} onSave={saveCommitment} />}
+    {doneTrack && doneProgress && <div className="modal-backdrop"><div className="modal compact-modal"><header><div><span className="eyebrow">Done early</span><h2>{language === 'zh' ? `${doneTrack.name} 本周目标已完成` : `${doneTrack.nameEn} is done for the week`}</h2></div><button className="ghost icon" onClick={() => setDoneEarlyTrackId(undefined)}><X /></button></header><div className="release-summary"><span>{language === 'zh' ? '当前保护' : 'Current protected'}<b>{hours(doneProgress.floor)}</b></span><span>{language === 'zh' ? '已经完成' : 'Completed'}<b>{hours(doneProgress.completed)}</b></span><span>{language === 'zh' ? '释放至 Flex' : 'Release to Flex'}<b>{hours(Math.max(0, doneProgress.floor - Math.min(doneProgress.floor, doneProgress.completed)) + doneProgress.flex)}</b></span></div>{futureMinutes > 0 && <div className="future-warning"><b>{language === 'zh' ? `这个 Track 仍有 ${hours(futureMinutes)} 尚未执行的日程。` : `You still have ${hours(futureMinutes)} scheduled for this track.`}</b><label><input type="checkbox" checked={removeFuture} onChange={event => setRemoveFuture(event.target.checked)} />{language === 'zh' ? '删除这些未来模块（默认保留）' : 'Remove future scheduled blocks (kept by default)'}</label></div>}<footer><button className="secondary" onClick={() => setDoneEarlyTrackId(undefined)}>{language === 'zh' ? '取消' : 'Cancel'}</button><button className="primary" onClick={confirmDoneEarly}>{language === 'zh' ? '确认释放' : 'Release'}</button></footer></div></div>}
+    {adjustTrackId && (() => { const track = workTracks.find(item => item.id === adjustTrackId); return track ? <div className="modal-backdrop"><form className="modal compact-modal" onSubmit={event => { event.preventDefault(); patchPlan({ floorOverrides: { ...plan.floorOverrides, [track.id]: Math.max(0, adjustFloorHours * 60) } }); setAdjustTrackId(undefined) }}><header><div><span className="eyebrow">Weekly override</span><h2>{language === 'zh' ? `调整 ${track.name} 本周 Floor` : `Adjust ${track.nameEn} this week`}</h2></div><button type="button" className="ghost icon" onClick={() => setAdjustTrackId(undefined)}><X /></button></header><label>{language === 'zh' ? '本周保护时间（小时）' : 'Protected hours this week'}<input autoFocus type="number" min="0" step="0.5" value={adjustFloorHours} onChange={event => setAdjustFloorHours(Number(event.target.value))} /></label><p className="modal-note">{language === 'zh' ? '只影响当前周；下周自动恢复 Base Floor。' : 'This affects only this week. Next week returns to the Base Floor.'}</p><footer><button type="button" className="secondary" onClick={() => setAdjustTrackId(undefined)}>{language === 'zh' ? '取消' : 'Cancel'}</button><button className="primary">{language === 'zh' ? '保存' : 'Save'}</button></footer></form></div> : null })()}
+    {opportunityOpen && <div className="modal-backdrop"><div className="modal opportunity-modal"><header><div><span className="eyebrow">Temporary reallocation</span><h2>{language === 'zh' ? '为当前机会重新分配' : 'Redirect resources now'}</h2></div><button className="ghost icon" onClick={() => setOpportunityOpen(false)}><X /></button></header><div className="form-row"><label>{language === 'zh' ? '增加给' : 'Give to'}<select value={opportunityTarget} onChange={event => { setOpportunityTarget(event.target.value); setReleases({}) }}>{workTracks.map(track => <option value={track.id} key={track.id}>{language === 'zh' ? track.name : track.nameEn}</option>)}</select></label><label>{language === 'zh' ? '需要（小时）' : 'Needed (hours)'}<input type="number" min="0.5" step="0.5" value={opportunityHours} onChange={event => setOpportunityHours(Math.max(.5, Number(event.target.value)))} /></label></div><div className="opportunity-summary"><span>{language === 'zh' ? '未分配 Flex' : 'Unallocated Flex'}<b>{hours(freeFlex)}</b></span><span>{language === 'zh' ? '仍需释放' : 'Still need'}<b>{hours(opportunityNeed)}</b></span></div>{opportunityNeed > 0 && <fieldset><legend>{language === 'zh' ? '从其他 Track 本周 Floor 释放' : 'Release from this week’s protected Floors'}</legend>{sourceTracks.map(track => { const maximum = effectiveFloor(track, plan, data.settings); return <label className="release-source" key={track.id}><span>{language === 'zh' ? track.name : track.nameEn}<small>{hours(maximum)} protected</small></span><input type="number" min="0" max={maximum / 60} step="0.5" value={(releases[track.id] ?? 0) / 60} onChange={event => setReleases(current => ({ ...current, [track.id]: Math.min(maximum, Math.max(0, Number(event.target.value) * 60)) }))} /> h</label> })}</fieldset>}{released < opportunityNeed && <p className="inline-warning">{language === 'zh' ? `还需要释放 ${hours(opportunityNeed - released)}。` : `Release ${hours(opportunityNeed - released)} more.`}</p>}<footer><button className="secondary" onClick={() => setOpportunityOpen(false)}>{language === 'zh' ? '取消' : 'Cancel'}</button><button className="primary" disabled={released < opportunityNeed} onClick={applyOpportunity}>{language === 'zh' ? '确认重分配' : 'Reallocate'}</button></footer></div></div>}
   </section>
+}
+
+function CommitmentModal({ commitment, language, onClose, onSave }: { commitment: WeeklyCommitment; language: 'zh' | 'en'; onClose: () => void; onSave: (value: WeeklyCommitment) => void }) {
+  const [draft, setDraft] = useState(commitment)
+  return <div className="modal-backdrop"><form className="modal compact-modal" onSubmit={event => { event.preventDefault(); if (draft.title.trim()) onSave({ ...draft, title: draft.title.trim() }) }}><header><div><span className="eyebrow">Upcoming commitment</span><h2>{language === 'zh' ? '记录一个 Deadline' : 'Add a commitment'}</h2></div><button type="button" className="ghost icon" onClick={onClose}><X /></button></header><label>{language === 'zh' ? '事项' : 'Title'}<input autoFocus value={draft.title} onChange={event => setDraft(current => ({ ...current, title: event.target.value }))} required /></label><div className="form-row"><label>{language === 'zh' ? '截止时间' : 'Due'}<input type="datetime-local" value={draft.dueAt} onChange={event => setDraft(current => ({ ...current, dueAt: event.target.value }))} /></label><label>{language === 'zh' ? '大小' : 'Size'}<select value={draft.size} onChange={event => setDraft(current => ({ ...current, size: event.target.value as WeeklyCommitment['size'] }))}>{(['small', 'medium', 'major'] as const).map(size => <option value={size} key={size}>{sizeLabels[size][language]}</option>)}</select></label></div><footer><button type="button" className="secondary" onClick={onClose}>{language === 'zh' ? '取消' : 'Cancel'}</button><button className="primary"><Check />{language === 'zh' ? '保存' : 'Save'}</button></footer></form></div>
 }

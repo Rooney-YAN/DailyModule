@@ -12,10 +12,11 @@ test('schema v1 data migrates without losing existing blocks', () => {
     summerPhases: [],
   }
   const migrated = migratePlannerData(legacy)
-  assert.equal(migrated.schemaVersion, 2)
+  assert.equal(migrated.schemaVersion, 3)
   assert.equal(migrated.timeBlocks.length, 1)
   assert.equal(migrated.timeBlocks[0].id, 'old-block')
   assert.equal(migrated.timeBlocks[0].trackId, 'ielts')
   assert.equal(migrated.timeBlocks[0].completedMinutes, 60)
+  assert.equal(migrated.settings.baseWeeklyCapacityMinutes, 2100)
   assert.ok(migrated.tracks.length >= 8)
 })
