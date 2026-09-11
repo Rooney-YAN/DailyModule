@@ -98,7 +98,7 @@ export function parseIcsCalendar(source: string): IcsImportResult {
     const templateId = `ics-template-${hash(`${summary}|${blockDuration}`)}`
     if (!templates.has(templateId)) templates.set(templateId, {
       id: templateId, title: summary, titleEn: summary, durationMinutes: blockDuration, categoryId: 'study', color: '#5876de', icon: '',
-      priority: 'medium', isFixed: true, canMove: false, canSplit: false, canBeOverridden: false, isBuiltIn: false, isHidden: false, trackId: 'courses',
+      priority: 'medium', isFixed: true, canMove: false, canSplit: false, canBeOverridden: false, isBuiltIn: false, isHidden: false, trackId: 'courses', countsTowardWeeklyCapacity: false,
     })
 
     const excluded = new Set(all('EXDATE').flatMap(property => property.value.split(',')).map(value => parseDateTime(value)?.date).filter((value): value is string => !!value))
@@ -107,14 +107,16 @@ export function parseIcsCalendar(source: string): IcsImportResult {
     }, {})
     const dates: string[] = []
     if (rule?.FREQ === 'WEEKLY') {
-      const until = parseDateTime(rule.UNTIL || '')?.date || dateString(addUtcDays(new Date(start.timestamp), 366))
+      const parsedUntil = parseDateTime(rule.UNTIL || '')
+      const until = parsedUntil?.date || dateString(addUtcDays(new Date(start.timestamp), 366))
       const interval = Math.max(1, Number(rule.INTERVAL) || 1)
       const byDays = (rule.BYDAY?.split(',').map(day => weekdays[day.slice(-2)]).filter(day => day !== undefined) ?? [new Date(start.timestamp).getUTCDay()])
       let cursor = new Date(Date.UTC(Number(start.date.slice(0, 4)), Number(start.date.slice(5, 7)) - 1, Number(start.date.slice(8, 10))))
       while (dateString(cursor) <= until) {
         const weeks = Math.floor((cursor.getTime() - Date.UTC(Number(start.date.slice(0, 4)), Number(start.date.slice(5, 7)) - 1, Number(start.date.slice(8, 10)))) / (7 * 86400000))
         const date = dateString(cursor)
-        if (weeks % interval === 0 && byDays.includes(cursor.getUTCDay()) && date >= start.date && !excluded.has(date)) dates.push(date)
+        const occurrenceTimestamp = Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)), Number(start.time.slice(0, 2)), Number(start.time.slice(3)))
+        if (weeks % interval === 0 && byDays.includes(cursor.getUTCDay()) && date >= start.date && !excluded.has(date) && (!parsedUntil || occurrenceTimestamp <= parsedUntil.timestamp)) dates.push(date)
         cursor = addUtcDays(cursor, 1)
       }
     } else {
@@ -141,4 +143,20 @@ export function parseIcsCalendar(source: string): IcsImportResult {
   })
 
   return { templates: [...templates.values()], blocks: [...occurrences.values()], eventCount: events.length, warnings }
+}
+
+export function uniqueIcsBlocks(existingBlocks: TimeBlock[], importedBlocks: TimeBlock[]) {
+  const ids = new Set(existingBlocks.map(block => block.id))
+  const existingIcsBlocks = existingBlocks.filter(block => block.source === 'ics')
+  const recurrenceKeys = new Set(existingIcsBlocks.filter(block => block.sourceUid && block.recurrenceId).map(block => `${block.sourceUid}|${block.recurrenceId}`))
+  const signatures = new Set(existingIcsBlocks.map(block => `${block.date}|${block.startTime}|${block.endTime}|${block.title}`))
+  return importedBlocks.filter(block => {
+    const recurrenceKey = block.sourceUid && block.recurrenceId ? `${block.sourceUid}|${block.recurrenceId}` : ''
+    const signature = `${block.date}|${block.startTime}|${block.endTime}|${block.title}`
+    if (ids.has(block.id) || (recurrenceKey && recurrenceKeys.has(recurrenceKey)) || signatures.has(signature)) return false
+    ids.add(block.id)
+    if (recurrenceKey) recurrenceKeys.add(recurrenceKey)
+    signatures.add(signature)
+    return true
+  })
 }

@@ -11,7 +11,7 @@ const categories: Category[] = [
 ]
 
 export const defaultTracks: Track[] = [
-  { id: 'courses', name: 'Courses / GPA', nameEn: 'Courses / GPA', color: '#5876de', kind: 'goal', weeklyFloorMinutes: 900, weeklyTargetMinutes: 900, important: true, urgent: true, countsTowardWeeklyCapacity: true },
+  { id: 'courses', name: 'Courses', nameEn: 'Courses', color: '#5876de', kind: 'goal', weeklyFloorMinutes: 900, weeklyTargetMinutes: 900, important: true, urgent: true, countsTowardWeeklyCapacity: true },
   { id: 'ielts', name: 'IELTS', nameEn: 'IELTS', color: '#745fd1', kind: 'goal', weeklyFloorMinutes: 300, weeklyTargetMinutes: 300, important: true, urgent: false, countsTowardWeeklyCapacity: true },
   { id: 'urop', name: 'UROP', nameEn: 'UROP', color: '#159679', kind: 'goal', weeklyFloorMinutes: 300, weeklyTargetMinutes: 300, important: true, urgent: false, countsTowardWeeklyCapacity: true },
   { id: 'cuda', name: 'CUDA', nameEn: 'CUDA', color: '#d47838', kind: 'goal', weeklyFloorMinutes: 180, weeklyTargetMinutes: 180, important: true, urgent: false, countsTowardWeeklyCapacity: true },
@@ -35,20 +35,23 @@ const defaultSettings: Settings = {
   reminders: { planningEnabled: true, planningWeekday: 0, planningHour: 18, midweekEnabled: false, midweekWeekday: 3, midweekHour: 18 },
 }
 
-const defaultTemplateDefinitions: Array<[string, string, string, number, string, string, string]> = [
-  ['Courses', 'Courses', '▤', 60, 'study', '#5876de', 'courses'],
-  ['IELTS', 'IELTS', 'Aa', 60, 'study', '#745fd1', 'ielts'],
-  ['UROP', 'UROP', '⌁', 60, 'study', '#159679', 'urop'],
-  ['CUDA', 'CUDA', '✦', 60, 'study', '#d47838', 'cuda'],
-  ['StockLens', 'StockLens', '◫', 60, 'study', '#b05f98', 'stocklens'],
-  ['健身', 'Gym', '🏃', 60, 'health', '#36a174', 'health'],
+const defaultTemplateDefinitions: Array<[string, string, string, number, string, string, string, boolean]> = [
+  ['Courses', 'Courses', '▤', 60, 'study', '#5876de', 'courses', true],
+  ['IELTS', 'IELTS', 'Aa', 60, 'study', '#745fd1', 'ielts', true],
+  ['UROP', 'UROP', '⌁', 60, 'study', '#159679', 'urop', true],
+  ['CUDA', 'CUDA', '✦', 60, 'study', '#d47838', 'cuda', true],
+  ['StockLens', 'StockLens', '◫', 60, 'study', '#b05f98', 'stocklens', true],
+  ['Gym', 'Gym', '🏃', 60, 'health', '#36a174', 'health', false],
 ]
 
-const blockTemplates: BlockTemplate[] = defaultTemplateDefinitions.map((template, index) => ({
-  id: `tpl-${index + 1}`, title: template[0], titleEn: template[1], icon: template[2], durationMinutes: template[3],
+const blockTemplates: BlockTemplate[] = defaultTemplateDefinitions.map(template => ({
+  id: `builtin-${template[6] === 'health' ? 'gym' : template[6]}`, title: template[0], titleEn: template[1], icon: template[2], durationMinutes: template[3],
   categoryId: template[4], color: template[5], trackId: template[6], priority: 'medium',
-  isFixed: false, canMove: true, canSplit: true, canBeOverridden: true, isBuiltIn: true, isHidden: false,
+  isFixed: false, canMove: true, canSplit: true, canBeOverridden: true, isBuiltIn: true, isHidden: false, countsTowardWeeklyCapacity: template[7],
 }))
+
+const workTrackIds = ['courses', 'ielts', 'urop', 'cuda', 'stocklens']
+const legacyDemoBlockIds = new Set(['demo-1', 'demo-2', 'demo-3', 'demo-4', 'demo-5', 'demo-6', 'demo-7', 'demo-8', 'demo-9'])
 
 const blockMinutes = (block: { startTime: string; endTime: string }) => {
   const [startHour, startMinute] = block.startTime.split(':').map(Number)
@@ -58,7 +61,7 @@ const blockMinutes = (block: { startTime: string; endTime: string }) => {
 
 export function createDefaultData(): PlannerData {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     settings: defaultSettings,
     categories,
     blockTemplates,
@@ -80,7 +83,7 @@ type LegacyData = Partial<Omit<PlannerData, 'schemaVersion' | 'settings'>> & {
 export function isPlannerData(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
   const data = value as LegacyData
-  return (data.schemaVersion === 1 || data.schemaVersion === 2 || data.schemaVersion === 3) && !!data.settings && Array.isArray(data.categories) &&
+  return ([1, 2, 3, 4].includes(data.schemaVersion ?? 0)) && !!data.settings && Array.isArray(data.categories) &&
     Array.isArray(data.blockTemplates) && Array.isArray(data.timeBlocks) && Array.isArray(data.summerPhases) &&
     data.timeBlocks.every(block => typeof block.id === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(block.date))
 }
@@ -114,10 +117,9 @@ export function migratePlannerData(value: unknown): PlannerData {
   const migratedTracks = defaultTracks.map(defaultTrack => {
     const existing = parsed.tracks?.find(track => track.id === defaultTrack.id)
     if (!existing) return defaultTrack
-    return { ...defaultTrack, ...existing, weeklyFloorMinutes: isPreV3 && defaultTrack.countsTowardWeeklyCapacity ? defaultTrack.weeklyFloorMinutes : existing.weeklyFloorMinutes, countsTowardWeeklyCapacity: defaultTrack.countsTowardWeeklyCapacity }
+    return { ...defaultTrack, ...existing, name: defaultTrack.name, nameEn: defaultTrack.nameEn, weeklyFloorMinutes: isPreV3 && defaultTrack.countsTowardWeeklyCapacity ? defaultTrack.weeklyFloorMinutes : existing.weeklyFloorMinutes, countsTowardWeeklyCapacity: defaultTrack.countsTowardWeeklyCapacity }
   })
   const extraTracks = (parsed.tracks ?? []).filter(track => !defaultTracks.some(defaultTrack => defaultTrack.id === track.id)).map(track => ({ ...track, countsTowardWeeklyCapacity: false }))
-  const workTrackIds = ['courses', 'ielts', 'urop', 'cuda', 'stocklens']
   const migratedPlans = Object.fromEntries(Object.entries(parsed.weeklyPlans ?? {}).map(([key, legacyPlan]) => {
     const plan = {
       ...legacyPlan,
@@ -141,14 +143,15 @@ export function migratePlannerData(value: unknown): PlannerData {
     return [key, { ...plan, flexAllocations }]
   }))
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     settings,
     categories: parsed.categories!,
-    blockTemplates: parsed.blockTemplates!.filter(template => !isLegacyBuffer(template)).map(template => {
+    blockTemplates: [...blockTemplates, ...parsed.blockTemplates!.filter(template => !isLegacyBuffer(template) && template.isBuiltIn !== true && !template.id.startsWith('ics-template-')).map(template => {
       const { isBuffer: _legacyBuffer, ...clean } = template as BlockTemplate & { isBuffer?: boolean }
-      return { ...clean, trackId: clean.trackId || inferTrack(clean.title, clean.categoryId) }
-    }),
-    timeBlocks: parsed.timeBlocks!.filter(block => !isLegacyBuffer(block)).map(block => {
+      const trackId = clean.trackId || inferTrack(clean.title, clean.categoryId)
+      return { ...clean, trackId, countsTowardWeeklyCapacity: clean.countsTowardWeeklyCapacity ?? workTrackIds.includes(trackId) }
+    })],
+    timeBlocks: parsed.timeBlocks!.filter(block => !isLegacyBuffer(block) && !legacyDemoBlockIds.has(block.id)).map(block => {
       const { isBuffer: _legacyBuffer, ...clean } = block as TimeBlock & { isBuffer?: boolean }
       const trackId = clean.trackId || inferTrack(clean.title, clean.categoryId)
       const fixedCourse = trackId === 'courses' && (clean.source === 'ics' || clean.isFixed)

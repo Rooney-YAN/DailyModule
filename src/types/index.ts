@@ -59,6 +59,7 @@ export type BlockTemplate = {
   isBuiltIn: boolean
   isHidden: boolean
   trackId?: string
+  countsTowardWeeklyCapacity: boolean
 }
 
 export type Track = {
@@ -135,7 +136,7 @@ export type Settings = {
 }
 
 export type PlannerData = {
-  schemaVersion: 3
+  schemaVersion: 4
   settings: Settings
   categories: Category[]
   blockTemplates: BlockTemplate[]

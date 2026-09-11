@@ -8,7 +8,7 @@ import { addDays, addMonths, format, isSameMonth, parseISO, subMonths } from 'da
 import type { BlockTemplate, PlannerData, TimeBlock, Track, View } from './types'
 import { createDefaultData, isPlannerData, loadData, migratePlannerData, resetData, saveData } from './lib/storage'
 import { dateLabel, duration, iso, monthDays, monthLabel, weekDays } from './lib/dates'
-import { parseIcsCalendar } from './lib/ics'
+import { parseIcsCalendar, uniqueIcsBlocks } from './lib/ics'
 import { baseFlex, clampFlexAllocations, completedMinutes as actualCompletedMinutes, createWeeklyPlan, dueReminder, protectedTotal, weekKey, weeklyCapacity, WORK_TRACK_IDS } from './lib/weekly'
 import NewsPage from './components/NewsPage'
 import WeeklyDashboard from './components/WeeklyDashboard'
@@ -21,7 +21,7 @@ const text = {
     empty: '这一天还没有安排', emptyHint: '留白也是计划的一部分。需要时再添加。',
     current: '当前模块', next: '下一模块', free: '当前为空闲时间', remaining: '剩余',
     done: '完成', skip: '跳过', pending: '待完成', conflict: '发生冲突',
-    export: '导出 JSON 备份', import: '导入 JSON 备份', reset: '重置为空模板',
+    export: '导出 JSON 备份', import: '导入 JSON 备份', reset: '重置为空白工作区',
     language: '界面语言', appearance: '外观', system: '跟随系统', light: '浅色', dark: '深色',
     local: '数据仅保存在当前浏览器', save: '已自动保存', templateHint: '模板只定义持续时间。拖入日视图的时间轴，再决定具体开始时间。',
   },
@@ -32,7 +32,7 @@ const text = {
     empty: 'Nothing planned for this day', emptyHint: 'Open space is part of a good plan. Add something when you need it.',
     current: 'Current block', next: 'Up next', free: 'You have free time right now', remaining: 'remaining',
     done: 'Done', skip: 'Skip', pending: 'Pending', conflict: 'Conflict',
-    export: 'Export JSON backup', import: 'Import JSON backup', reset: 'Reset to empty template',
+    export: 'Export JSON backup', import: 'Import JSON backup', reset: 'Reset workspace',
     language: 'Language', appearance: 'Appearance', system: 'System', light: 'Light', dark: 'Dark',
     local: 'Data stays in this browser only', save: 'Saved automatically', templateHint: 'Templates define duration only. Drag one onto the day timeline to choose its start time.',
   },
@@ -131,7 +131,7 @@ function detectConflicts(blocks: TimeBlock[]) {
 
 export default function App() {
   const [data, setData] = useState<PlannerData>(() => loadData())
-  const [view, setView] = useState<View>(() => loadData().settings.defaultView)
+  const [view, setView] = useState<View>(data.settings.defaultView)
   const [selectedDate, setSelectedDate] = useState(iso(new Date()))
   const [editMode, setEditMode] = useState(false)
   const [modal, setModal] = useState<{ open: boolean; block?: TimeBlock }>({ open: false })
@@ -187,7 +187,7 @@ export default function App() {
       id: crypto.randomUUID(), title: template.title, titleEn: template.titleEn, date: selectedDate, startTime: start, endTime: end,
       categoryId: template.categoryId, color: template.color, icon: template.icon, priority: template.priority, status: 'pending',
       isFixed: template.isFixed, canMove: template.canMove, canSplit: template.canSplit, canBeOverridden: template.canBeOverridden,
-      templateId: template.id, trackId: template.trackId, completedMinutes: 0, countsTowardWeeklyCapacity: !!template.trackId && WORK_TRACK_IDS.includes(template.trackId as typeof WORK_TRACK_IDS[number]) && !(template.isFixed && template.trackId === 'courses'), createdAt: now, updatedAt: now,
+      templateId: template.id, trackId: template.trackId, completedMinutes: 0, countsTowardWeeklyCapacity: template.countsTowardWeeklyCapacity, createdAt: now, updatedAt: now,
     })
     setNotice(language === 'zh' ? `已添加“${template.title}”` : `Added “${template.titleEn}”`)
     window.setTimeout(() => setNotice(''), 1800)
@@ -198,6 +198,7 @@ export default function App() {
       id: moduleModal.template?.id ?? crypto.randomUUID(), title: value.title, titleEn: moduleModal.template?.titleEn ?? value.title, durationMinutes: value.durationMinutes,
       categoryId: category.id, color: category.color, icon: moduleModal.template?.icon ?? '◆', priority: moduleModal.template?.priority ?? 'medium', isFixed: moduleModal.template?.isFixed ?? false,
       canMove: moduleModal.template?.canMove ?? true, canSplit: moduleModal.template?.canSplit ?? true, canBeOverridden: moduleModal.template?.canBeOverridden ?? true, isBuiltIn: moduleModal.template?.isBuiltIn ?? false, isHidden: false, trackId: value.trackId,
+      countsTowardWeeklyCapacity: !!value.trackId && WORK_TRACK_IDS.includes(value.trackId as typeof WORK_TRACK_IDS[number]),
     }
     setData(current => ({ ...current, blockTemplates: current.blockTemplates.some(item => item.id === template.id) ? current.blockTemplates.map(item => item.id === template.id ? template : item) : [...current.blockTemplates, template] }))
     setModuleModal({ open: false })
@@ -231,12 +232,15 @@ export default function App() {
     try {
       const imported = parseIcsCalendar(await file.text())
       if (!imported.blocks.length) throw new Error('No supported events')
-      const blockIds = new Set(data.timeBlocks.map(block => block.id))
-      const blockSignatures = new Set(data.timeBlocks.map(block => `${block.date}|${block.startTime}|${block.endTime}|${block.title}`))
-      const newBlocks = imported.blocks.map(block => ({ ...block, templateId: undefined })).filter(block => !blockIds.has(block.id) && !blockSignatures.has(`${block.date}|${block.startTime}|${block.endTime}|${block.title}`))
+      const newBlocks = uniqueIcsBlocks(data.timeBlocks, imported.blocks).map(block => ({ ...block, templateId: undefined }))
+      if (!newBlocks.length) {
+        setNotice(language === 'zh' ? '课程表已是最新，没有新增事件。' : 'The timetable is already up to date. No events were added.')
+        window.setTimeout(() => setNotice(''), 3500)
+        return
+      }
       setData(current => ({
         ...current,
-        timeBlocks: [...current.timeBlocks, ...newBlocks.filter(block => !current.timeBlocks.some(existing => existing.id === block.id || (existing.date === block.date && existing.startTime === block.startTime && existing.endTime === block.endTime && existing.title === block.title)))],
+        timeBlocks: [...current.timeBlocks, ...uniqueIcsBlocks(current.timeBlocks, newBlocks)],
         calendarImports: [...current.calendarImports, { id: crypto.randomUUID(), fileName: file.name, importedAt: new Date().toISOString(), eventCount: newBlocks.length }],
       }))
       setNotice(language === 'zh' ? `ICS 已读取：新增 ${newBlocks.length} 个课程时段，跳过 ${imported.blocks.length - newBlocks.length} 个重复项。` : `ICS imported: ${newBlocks.length} added, ${imported.blocks.length - newBlocks.length} duplicates skipped.`)
@@ -246,7 +250,7 @@ export default function App() {
     }
   }
   const resetWorkspace = () => {
-    if (!window.confirm(language === 'zh' ? '确定重置为空模板？所有日程、周计划和导入记录都会被清空。' : 'Reset to an empty template? All schedules, weekly plans, and imports will be cleared.')) return
+    if (!window.confirm(language === 'zh' ? '这会清空当前日程、周计划、Deadline、Flex 分配和已导入课程表，并恢复默认设置与模块预设。确定继续吗？' : 'This clears the current schedule, weekly plans, deadlines, Flex allocations, and imported timetable, then restores default settings and module presets. Continue?')) return
     resetData(); setData(createDefaultData())
   }
 
@@ -374,7 +378,7 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
           onDragEnd={() => { setDraggingPayload(undefined); setDragPreview(undefined) }}
           onClick={() => setArmedTemplateId(current => current === template.id ? undefined : template.id)}
           key={template.id}
-        ><span className="module-grip" aria-hidden="true">⠿</span>{template.icon && <span className="module-symbol">{template.icon}</span>}<span className="module-copy"><b>{language === 'en' ? template.titleEn : template.title}</b><small>{formatDuration(template.durationMinutes)}</small></span><span className="module-tools"><button type="button" draggable={false} onClick={event => { event.stopPropagation(); onEditTemplate(template) }} aria-label={language === 'zh' ? '修改模块' : 'Edit module'}><Pencil /></button><button type="button" draggable={false} onClick={event => { event.stopPropagation(); removeTemplate(template) }} aria-label={language === 'zh' ? '删除模块' : 'Delete module'}><Trash2 /></button></span></article>)}</div>
+        ><span className="module-grip" aria-hidden="true">⠿</span>{template.icon && <span className="module-symbol">{template.icon}</span>}<span className="module-copy"><b>{language === 'en' ? template.titleEn : template.title}</b><small>{formatDuration(template.durationMinutes)}</small></span>{!template.isBuiltIn && <span className="module-tools"><button type="button" draggable={false} onClick={event => { event.stopPropagation(); onEditTemplate(template) }} aria-label={language === 'zh' ? '修改模块' : 'Edit module'}><Pencil /></button><button type="button" draggable={false} onClick={event => { event.stopPropagation(); removeTemplate(template) }} aria-label={language === 'zh' ? '删除模块' : 'Delete module'}><Trash2 /></button></span>}</article>)}</div>
       </aside>
       <section className={`schedule-board ${armedTemplateId ? 'placing' : ''}`}>
         <div className="schedule-instructions"><span>{editMode ? (language === 'zh' ? '拖动已安排模块可重新排期' : 'Drag scheduled blocks to reschedule') : (language === 'zh' ? '开启编辑模式后可移动已有模块' : 'Turn on edit mode to move scheduled blocks')}</span>{armedTemplateId && <b>{language === 'zh' ? '点击时间轴放置选中的模块' : 'Click the timeline to place the selected module'}</b>}</div>
@@ -522,11 +526,17 @@ function SettingsView({ data, setData, t, exportData, importRef, icsRef, resetWo
   const language = data.settings.language
   const weekdayLabels = language === 'zh' ? ['周日','周一','周二','周三','周四','周五','周六'] : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
   const workTracks = WORK_TRACK_IDS.map(id => data.tracks.find(track => track.id === id)).filter((track): track is NonNullable<typeof track> => !!track)
+  const importedCourseCount = data.timeBlocks.filter(block => block.source === 'ics').length
+  const latestImport = data.calendarImports.at(-1)
+  const clearImportedCourses = () => {
+    if (!window.confirm(language === 'zh' ? '确定清除全部已导入课程吗？自己创建的 Courses 模块不会被删除。' : 'Clear all imported courses? Courses blocks you created yourself will be kept.')) return
+    setData(current => ({ ...current, timeBlocks: current.timeBlocks.filter(block => block.source !== 'ics'), calendarImports: [] }))
+  }
   return <div className="settings-page">
     <section className="page-title"><span className="eyebrow">{t.settings}</span><h1>{data.settings.language === 'zh' ? '让计划适合你' : 'Make it yours'}</h1><p>{t.local}</p></section>
     <section className="settings-card"><div><Languages /><span><b>{t.language}</b><small>简体中文 / English</small></span></div><div className="segmented"><button className={data.settings.language === 'zh' ? 'active' : ''} onClick={() => patch({ language: 'zh' })}>中文</button><button className={data.settings.language === 'en' ? 'active' : ''} onClick={() => patch({ language: 'en' })}>English</button></div></section>
     <section className="settings-card"><div><Sun /><span><b>{t.appearance}</b><small>{t[data.settings.theme]}</small></span></div><div className="segmented">{(['system','light','dark'] as const).map(theme => <button className={data.settings.theme === theme ? 'active' : ''} onClick={() => patch({ theme })} key={theme}>{t[theme]}</button>)}</div></section>
-    <section className="settings-card settings-column"><div><CalendarRange /><span><b>{language === 'zh' ? 'ICS 课程表' : 'ICS timetable'}</b><small>{language === 'zh' ? '本地解析；支持 Weekly、UNTIL、EXDATE 与香港时区' : 'Parsed locally; supports Weekly, UNTIL, EXDATE and Hong Kong time'}</small></span></div><div className="settings-inline"><button className="secondary" onClick={() => icsRef.current?.click()}><FileUp />{language === 'zh' ? '导入 .ics' : 'Import .ics'}</button><small>{data.calendarImports.length ? (language === 'zh' ? `已导入 ${data.calendarImports.length} 次，重复 UID 自动跳过` : `${data.calendarImports.length} imports; duplicate UIDs skipped`) : (language === 'zh' ? '尚未导入' : 'No imports yet')}</small></div></section>
+    <section className="settings-card settings-column"><div><CalendarRange /><span><b>{language === 'zh' ? 'ICS 课程表' : 'ICS timetable'}</b><small>{language === 'zh' ? '本地解析；支持 Weekly、UNTIL、EXDATE 与香港时区' : 'Parsed locally; supports Weekly, UNTIL, EXDATE and Hong Kong time'}</small></span></div><div className="settings-inline"><button className="secondary" onClick={() => icsRef.current?.click()}><FileUp />{language === 'zh' ? '导入 .ics' : 'Import .ics'}</button>{latestImport ? <small>{latestImport.fileName} · {importedCourseCount} {language === 'zh' ? '个课程事件' : 'course events'}</small> : <small>{language === 'zh' ? '尚未导入' : 'No imports yet'}</small>}{importedCourseCount > 0 && <button className="danger-button" onClick={clearImportedCourses}><Trash2 />{language === 'zh' ? '清除已导入课程' : 'Clear imported courses'}</button>}</div></section>
     <section className="settings-card settings-column"><div><Gauge /><span><b>{language === 'zh' ? '每周工作资源' : 'Weekly work resources'}</b><small>{language === 'zh' ? '基础 Capacity 与各模式的 Floor Profile' : 'Base capacity and per-mode Floor profiles'}</small></span></div><label className="capacity-setting"><span>{language === 'zh' ? 'Base Weekly Capacity' : 'Base Weekly Capacity'}</span><input type="number" min="0" step="0.5" value={data.settings.baseWeeklyCapacityMinutes / 60} onChange={event => patch({ baseWeeklyCapacityMinutes: Math.max(0, Number(event.target.value) * 60) })} /><small>h</small></label><details className="profile-settings"><summary>{language === 'zh' ? '编辑模式 Floor Profile' : 'Edit mode Floor profiles'}</summary><div className="profile-matrix"><span />{(['normal','busy','crunch','deload'] as const).map(mode => <b key={mode}>{mode}</b>)}{workTracks.map(track => <div className="profile-row" key={track.id}><strong>{language === 'zh' ? track.name : track.nameEn}<small>{track.weeklyFloorMinutes / 60}h base</small></strong>{(['normal','busy','crunch','deload'] as const).map(mode => <label key={mode}><input type="number" min="0" max="2" step="0.1" value={data.settings.modeFloorProfiles[mode][track.id] ?? 1} onChange={event => patch({ modeFloorProfiles: { ...data.settings.modeFloorProfiles, [mode]: { ...data.settings.modeFloorProfiles[mode], [track.id]: Math.max(0, Number(event.target.value)) } } })} /><span>×</span></label>)}</div>)}</div></details></section>
     <section className="settings-card settings-column"><div><Clock3 /><span><b>{language === 'zh' ? '站内提醒' : 'In-app reminders'}</b><small>{language === 'zh' ? '在设定时间后的首次打开时显示' : 'Shown on the first visit after the scheduled time'}</small></span></div><div className="reminder-settings"><label><input type="checkbox" checked={data.settings.reminders.planningEnabled} onChange={event => patch({ reminders: { ...data.settings.reminders, planningEnabled: event.target.checked } })} /> Weekly Planning</label><select value={data.settings.reminders.planningWeekday} onChange={event => patch({ reminders: { ...data.settings.reminders, planningWeekday: Number(event.target.value) } })}>{weekdayLabels.map((label, index) => <option value={index} key={label}>{label}</option>)}</select><input type="number" min="0" max="23" value={data.settings.reminders.planningHour} onChange={event => patch({ reminders: { ...data.settings.reminders, planningHour: Math.max(0, Math.min(23, Number(event.target.value))) } })} /><span>:00</span><label><input type="checkbox" checked={data.settings.reminders.midweekEnabled} onChange={event => patch({ reminders: { ...data.settings.reminders, midweekEnabled: event.target.checked } })} /> Midweek Check</label><select value={data.settings.reminders.midweekWeekday} onChange={event => patch({ reminders: { ...data.settings.reminders, midweekWeekday: Number(event.target.value) } })}>{weekdayLabels.map((label, index) => <option value={index} key={label}>{label}</option>)}</select><input type="number" min="0" max="23" value={data.settings.reminders.midweekHour} onChange={event => patch({ reminders: { ...data.settings.reminders, midweekHour: Math.max(0, Math.min(23, Number(event.target.value))) } })} /><span>:00</span></div></section>
     <section className="settings-card data-actions"><div><Download /><span><b>{data.settings.language === 'zh' ? '数据与备份' : 'Data & backup'}</b><small>JSON</small></span></div><div><button className="secondary" onClick={exportData}><Download />{t.export}</button><button className="secondary" onClick={() => importRef.current?.click()}><FileUp />{t.import}</button><button className="danger-button" onClick={resetWorkspace}><RotateCcw />{t.reset}</button></div></section>

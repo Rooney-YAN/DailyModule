@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseIcsCalendar } from '../src/lib/ics.ts'
+import { parseIcsCalendar, uniqueIcsBlocks } from '../src/lib/ics.ts'
 
 const calendar = `BEGIN:VCALENDAR\r
 VERSION:2.0\r
@@ -44,4 +44,44 @@ END:VCALENDAR`)
   const result = parseIcsCalendar(duplicate)
   assert.equal(result.blocks.filter(block => block.date === '2026-09-01').length, 1)
   assert.match(result.blocks[0].note ?? '', /Room B/)
+})
+
+const hkustCalendar = `BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//HKUST//Timetable Planner//EN\r
+CALSCALE:GREGORIAN\r
+BEGIN:VEVENT\r
+UID:EA375779A8192BCF02071C4961C926D8@timetable.ust.hk\r
+DTSTART;TZID=Asia/Hong_Kong:20260901T103000\r
+DTEND;TZID=Asia/Hong_Kong:20260901T120000\r
+SUMMARY:COMP 2012 (L3)\r
+LOCATION:Lecture Theater J (300)\r
+RRULE:FREQ=WEEKLY;UNTIL=20261130T235959Z\r
+EXDATE;TZID=Asia/Hong_Kong:20261001\r
+END:VEVENT\r
+BEGIN:VEVENT\r
+UID:B3A248EB11FD810872FC05CBE145B0B8@timetable.ust.hk\r
+DTSTART;TZID=Asia/Hong_Kong:20260907T090000\r
+DTEND;TZID=Asia/Hong_Kong:20260907T103000\r
+SUMMARY:COMP 2611 (L2)\r
+LOCATION:Rm 2464\r
+RRULE:FREQ=WEEKLY;UNTIL=20261130T235959Z\r
+EXDATE;TZID=Asia/Hong_Kong:20261019\r
+END:VEVENT\r
+END:VCALENDAR`
+
+test('HKUST recurrence remains in Hong Kong time, respects UTC UNTIL and deduplicates imports', () => {
+  const result = parseIcsCalendar(hkustCalendar)
+  const comp2012 = result.blocks.filter(block => block.title === 'COMP 2012 (L3)')
+  const comp2611 = result.blocks.filter(block => block.title === 'COMP 2611 (L2)')
+
+  assert.equal(comp2012[0].date, '2026-09-01')
+  assert.equal(comp2012[0].startTime, '10:30')
+  assert.equal(comp2012.some(block => block.date === '2026-12-01'), false)
+  assert.equal(comp2611.some(block => block.date === '2026-10-19'), false)
+  assert.ok(comp2611.some(block => block.date === '2026-10-12'))
+  assert.ok(result.blocks.every(block => block.source === 'ics' && block.trackId === 'courses' && block.isFixed && !block.canMove && block.countsTowardWeeklyCapacity === false))
+  assert.deepEqual(uniqueIcsBlocks([], result.blocks), result.blocks)
+  assert.deepEqual(uniqueIcsBlocks(result.blocks, result.blocks), [])
+  assert.deepEqual(uniqueIcsBlocks([{ ...result.blocks[0], id: 'manual-course', source: undefined, sourceUid: undefined, recurrenceId: undefined }], [result.blocks[0]]), [result.blocks[0]])
 })
