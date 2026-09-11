@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  allocatedFlex, baseFlex, canAllocateFlex, completedTrackedMinutes, createWeeklyPlan, effectiveFloor, overcommitAmount,
+  allocatedFlex, applyDoneEarly, applyTemporaryReallocation, baseFlex, canAllocateFlex, clampFlexAllocations, completedTrackedMinutes, createWeeklyPlan, effectiveFloor, overcommitAmount,
   plannedTrackedTotal, protectedTotal, scheduledTrackedMinutes, trackProgress, unallocatedFlex, weeklyBudget,
 } from '../src/lib/weekly.ts'
 import type { Settings, TimeBlock, Track } from '../src/types/index.ts'
@@ -42,6 +42,11 @@ test('Crunch: 19h protected and 16h Flex', () => {
   assert.equal(baseFlex(2100, protectedMinutes), 960)
 })
 
+test('Deload: per-track profile produces 8.5h protected', () => {
+  const plan = { ...createWeeklyPlan('2026-09-14'), mode: 'deload' as const }
+  assert.equal(protectedTotal(tracks, plan, settings), 510)
+})
+
 test('fixed ICS classes are excluded from Weekly Planned Work', () => {
   const fixedClass = block('lecture', 'courses', 90, 'completed', { isFixed: true, source: 'ics', countsTowardWeeklyCapacity: false })
   assert.equal(plannedTrackedTotal([fixedClass]), 0)
@@ -60,21 +65,23 @@ test('Gym and personal blocks do not enter Capacity calculations', () => {
 })
 
 test('Done Early releases 7h this week and resets next week', () => {
-  const current = { ...createWeeklyPlan('2026-09-14'), floorOverrides: { courses: 480 } }
+  const initial = { ...createWeeklyPlan('2026-09-14'), flexAllocations: { courses: 60 } }
+  const current = applyDoneEarly(initial, 'courses', 480, 900)
   const next = createWeeklyPlan('2026-09-21')
   const courses = tracks[0]
   assert.equal(effectiveFloor(courses, current, settings), 480)
   assert.equal(effectiveFloor(courses, next, settings), 900)
+  assert.equal(current.flexAllocations.courses, 0)
   assert.equal(baseFlex(2100, protectedTotal(tracks, current, settings)) - baseFlex(2100, protectedTotal(tracks, next, settings)), 420)
 })
 
 test('temporary reallocation lowers CUDA only this week and adds UROP budget', () => {
-  const current = { ...createWeeklyPlan('2026-09-14'), floorOverrides: { cuda: 120 }, flexAllocations: { urop: 60 } }
+  const current = applyTemporaryReallocation(createWeeklyPlan('2026-09-14'), 'urop', 180, 120, { cuda: 60 }, [tracks.find(track => track.id === 'cuda')!], settings)
   const next = createWeeklyPlan('2026-09-21')
   const cuda = tracks.find(track => track.id === 'cuda')!
   const urop = tracks.find(track => track.id === 'urop')!
   assert.equal(effectiveFloor(cuda, current, settings), 120)
-  assert.equal(weeklyBudget(urop, current, settings), 360)
+  assert.equal(weeklyBudget(urop, current, settings), 480)
   assert.equal(effectiveFloor(cuda, next, settings), 180)
 })
 
@@ -90,6 +97,13 @@ test('Flex allocation cannot exceed Base Flex', () => {
   assert.equal(canAllocateFlex(plan, 300, 'urop', 300), true)
 })
 
+test('existing Flex allocations are clamped when Capacity or Floors reduce Flex', () => {
+  const plan = { ...createWeeklyPlan('2026-09-14'), flexAllocations: { courses: 180, urop: 120, cuda: 60 } }
+  const clamped = clampFlexAllocations(plan, 210)
+  assert.deepEqual(clamped, { courses: 180, ielts: 0, urop: 30, cuda: 0, stocklens: 0 })
+  assert.equal(Object.values(clamped).reduce((sum, value) => sum + value, 0), 210)
+})
+
 test('Planned over Capacity reports the overcommit amount', () => {
   assert.equal(overcommitAmount(2280, 2100), 180)
   assert.equal(overcommitAmount(1800, 2100), 0)
@@ -100,4 +114,15 @@ test('track status is based on Budget, Scheduled and Completed', () => {
   const cuda = tracks.find(track => track.id === 'cuda')!
   assert.equal(trackProgress(cuda, plan, [block('cuda-work', 'cuda', 180)], settings).status, 'covered')
   assert.equal(trackProgress(cuda, plan, [block('cuda-done', 'cuda', 180, 'completed')], settings).status, 'done')
+})
+
+test('partial completion is not double-counted with scheduled time', () => {
+  const plan = createWeeklyPlan('2026-09-14')
+  const cuda = tracks.find(track => track.id === 'cuda')!
+  const partial = block('cuda-partial', 'cuda', 180, 'partial', { completedMinutes: 60 })
+  const progress = trackProgress(cuda, plan, [partial], settings)
+  assert.equal(progress.scheduled, 180)
+  assert.equal(progress.completed, 60)
+  assert.equal(progress.scheduled - progress.completed, 120)
+  assert.equal(progress.status, 'covered')
 })

@@ -1,10 +1,6 @@
-import { addDays, format } from 'date-fns'
 import type { BlockTemplate, Category, PlannerData, Settings, TimeBlock, Track } from '../types'
 
 const KEY = 'summer-planner-static-v1'
-const today = format(new Date(), 'yyyy-MM-dd')
-const day = (offset: number) => format(addDays(new Date(), offset), 'yyyy-MM-dd')
-
 const categories: Category[] = [
   { id: 'study', name: '学习', nameEn: 'Study', color: '#5b7cfa', countsTowardCompletion: true },
   { id: 'health', name: '健康', nameEn: 'Health', color: '#39a876', countsTowardCompletion: true },
@@ -34,40 +30,25 @@ const defaultModeFloorProfiles: Settings['modeFloorProfiles'] = {
 
 const defaultSettings: Settings = {
   language: 'zh', theme: 'system', weekStartsOn: 1, defaultDayStart: '07:00', defaultDayEnd: '23:00', countLifeBlocks: false, defaultView: 'day',
-  modeFloorMultipliers: { normal: 1, busy: 0.75, crunch: 0.5, deload: 0.25 },
   baseWeeklyCapacityMinutes: 2100,
   modeFloorProfiles: defaultModeFloorProfiles,
   reminders: { planningEnabled: true, planningWeekday: 0, planningHour: 18, midweekEnabled: false, midweekWeekday: 3, midweekHour: 18 },
 }
 
-const templateSeed: Array<[string, string, string, number, string, string, string]> = [
-  ['健身', 'Workout', '🏃', 60, 'health', '#39a876', 'health'],
-  ['AI 项目', 'AI Project', '✦', 120, 'study', '#5b7cfa', 'cuda'],
-  ['IELTS 词汇', 'IELTS Vocabulary', 'Aa', 45, 'study', '#6c87ee', 'ielts'],
-  ['IELTS 口语', 'IELTS Speaking', '◌', 45, 'study', '#7489df', 'ielts'],
-  ['视频素材筛选', 'Footage Review', '▣', 60, 'creative', '#9c72d5', 'rest'],
-  ['视频剪辑', 'Video Editing', '▶', 120, 'creative', '#a36be0', 'rest'],
-  ['做午饭', 'Cook Lunch', '♨', 45, 'life', '#ee9b4c', 'rest'],
-  ['做晚饭', 'Cook Dinner', '♨', 45, 'life', '#e78d43', 'rest'],
-  ['午饭', 'Lunch', '◐', 45, 'life', '#eba25c', 'rest'],
-  ['晚饭', 'Dinner', '◑', 45, 'life', '#e49351', 'rest'],
-  ['Valorant', 'Valorant', '◆', 90, 'rest', '#49a9bd', 'rest'],
-  ['社交与外出', 'Social', '☺', 120, 'social', '#e86e8e', 'social'],
-  ['自由时间', 'Free Time', '○', 60, 'rest', '#63adbd', 'rest'],
-  ['睡觉', 'Sleep', '☾', 480, 'rest', '#60739a', 'health'],
-  ['起床和晨间准备', 'Morning Routine', '☀', 45, 'life', '#e6aa4c', 'health'],
+const defaultTemplateDefinitions: Array<[string, string, string, number, string, string, string]> = [
+  ['Courses', 'Courses', '▤', 60, 'study', '#5876de', 'courses'],
+  ['IELTS', 'IELTS', 'Aa', 60, 'study', '#745fd1', 'ielts'],
+  ['UROP', 'UROP', '⌁', 60, 'study', '#159679', 'urop'],
+  ['CUDA', 'CUDA', '✦', 60, 'study', '#d47838', 'cuda'],
+  ['StockLens', 'StockLens', '◫', 60, 'study', '#b05f98', 'stocklens'],
+  ['健身', 'Gym', '🏃', 60, 'health', '#36a174', 'health'],
 ]
 
-const blockTemplates: BlockTemplate[] = templateSeed.map((template, index) => ({
+const blockTemplates: BlockTemplate[] = defaultTemplateDefinitions.map((template, index) => ({
   id: `tpl-${index + 1}`, title: template[0], titleEn: template[1], icon: template[2], durationMinutes: template[3],
-  categoryId: template[4], color: template[5], trackId: template[6], priority: index === 1 ? 'high' : 'medium',
+  categoryId: template[4], color: template[5], trackId: template[6], priority: 'medium',
   isFixed: false, canMove: true, canSplit: true, canBeOverridden: true, isBuiltIn: true, isHidden: false,
 }))
-
-function makeBlock(id: string, title: string, titleEn: string, date: string, startTime: string, endTime: string, categoryId: string, color: string, trackId: string, priority: TimeBlock['priority'] = 'medium', status: TimeBlock['status'] = 'pending'): TimeBlock {
-  const timestamp = new Date().toISOString()
-  return { id, title, titleEn, date, startTime, endTime, categoryId, color, trackId, priority, status, completedMinutes: status === 'completed' ? blockMinutes({ startTime, endTime }) : 0, isFixed: false, canMove: true, canSplit: true, canBeOverridden: true, createdAt: timestamp, updatedAt: timestamp }
-}
 
 const blockMinutes = (block: { startTime: string; endTime: string }) => {
   const [startHour, startMinute] = block.startTime.split(':').map(Number)
@@ -81,16 +62,7 @@ export function createDefaultData(): PlannerData {
     settings: defaultSettings,
     categories,
     blockTemplates,
-    timeBlocks: [
-      makeBlock('demo-1', '晨间健身', 'Morning workout', today, '07:30', '08:30', 'health', '#39a876', 'health', 'high', 'completed'),
-      makeBlock('demo-2', 'IELTS 词汇', 'IELTS vocabulary', today, '09:30', '10:15', 'study', '#6c87ee', 'ielts', 'high'),
-      makeBlock('demo-3', 'CUDA 项目', 'CUDA project', today, '10:30', '12:00', 'study', '#5b7cfa', 'cuda', 'high'),
-      makeBlock('demo-4', '做午饭', 'Cook lunch', today, '12:00', '12:45', 'life', '#ee9b4c', 'rest'),
-      makeBlock('demo-6', '视频剪辑', 'Video editing', today, '15:30', '17:30', 'creative', '#a36be0', 'rest'),
-      makeBlock('demo-7', 'IELTS 口语', 'IELTS speaking', day(1), '09:00', '10:00', 'study', '#7489df', 'ielts'),
-      makeBlock('demo-8', '朋友聚餐', 'Dinner with friends', day(2), '18:30', '21:00', 'social', '#e86e8e', 'social'),
-      makeBlock('demo-9', 'CUDA 项目', 'CUDA project', day(-1), '10:00', '12:00', 'study', '#5b7cfa', 'cuda', 'high', 'completed'),
-    ],
+    timeBlocks: [],
     summerPhases: [],
     tracks: defaultTracks,
     weeklyPlans: {},
@@ -135,7 +107,6 @@ export function migratePlannerData(value: unknown): PlannerData {
   const settings: Settings = {
     ...defaultSettings,
     ...parsed.settings,
-    modeFloorMultipliers: { ...defaultSettings.modeFloorMultipliers, ...(parsed.settings?.modeFloorMultipliers ?? {}) },
     baseWeeklyCapacityMinutes: parsed.settings?.baseWeeklyCapacityMinutes ?? defaultSettings.baseWeeklyCapacityMinutes,
     modeFloorProfiles: (Object.keys(defaultModeFloorProfiles) as Array<keyof typeof defaultModeFloorProfiles>).reduce((profiles, mode) => ({ ...profiles, [mode]: { ...defaultModeFloorProfiles[mode], ...(parsed.settings?.modeFloorProfiles?.[mode] ?? {}) } }), {} as Settings['modeFloorProfiles']),
     reminders: { ...defaultSettings.reminders, ...(parsed.settings?.reminders ?? {}), midweekEnabled: isPreV3 ? false : parsed.settings?.reminders?.midweekEnabled ?? false },
@@ -153,7 +124,7 @@ export function migratePlannerData(value: unknown): PlannerData {
       mode: legacyPlan.mode ?? 'normal',
       floorOverrides: legacyPlan.floorOverrides ?? {},
       commitments: legacyPlan.commitments ?? [],
-      topOutcomes: [...(legacyPlan.topOutcomes ?? []), '', '', ''].slice(0, 3),
+      topOutcomes: (legacyPlan.topOutcomes ?? []).slice(0, 3),
     }
     const profile = settings.modeFloorProfiles[plan.mode]
     const protectedMinutes = migratedTracks

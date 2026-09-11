@@ -85,18 +85,12 @@ export type WeeklyCommitment = {
 export type WeeklyPlan = {
   weekStart: string
   mode: WeeklyMode
-  floorMultiplier: number
-  flexBudgetMinutes: number
   capacityOverrideMinutes?: number
   floorOverrides: Record<string, number>
   flexAllocations: Record<string, number>
   topOutcomes: string[]
   commitments: WeeklyCommitment[]
-  courseDeadlines: string
-  ieltsFocus: string
-  uropOutput: string
   primaryFocusTrackId?: string
-  secondaryFocusTrackId?: string
   reviewCompletedAt?: string
   midweekCheckedAt?: string
   planningDismissedDate?: string
@@ -128,7 +122,6 @@ export type Settings = {
   countLifeBlocks: boolean
   defaultView: 'day' | 'now'
   fall2026CoursesImported?: boolean
-  modeFloorMultipliers: Record<WeeklyMode, number>
   baseWeeklyCapacityMinutes: number
   modeFloorProfiles: Record<WeeklyMode, Record<string, number>>
   reminders: {

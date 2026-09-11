@@ -9,15 +9,10 @@ export const weekKey = (date: string | Date) => format(startOfWeek(typeof date =
 export const createWeeklyPlan = (weekStart: string): WeeklyPlan => ({
   weekStart,
   mode: 'normal',
-  floorMultiplier: 1,
-  flexBudgetMinutes: 0,
   floorOverrides: {},
   flexAllocations: {},
-  topOutcomes: ['', '', ''],
+  topOutcomes: [],
   commitments: [],
-  courseDeadlines: '',
-  ieltsFocus: '',
-  uropOutput: '',
 })
 
 export const plannedMinutes = (block: TimeBlock) => {
@@ -80,6 +75,51 @@ export const trackProgress = (track: Track, plan: WeeklyPlan, blocks: TimeBlock[
 export const canAllocateFlex = (plan: WeeklyPlan, availableFlex: number, trackId: string, nextMinutes: number) => {
   const next = { ...plan, flexAllocations: { ...plan.flexAllocations, [trackId]: Math.max(0, nextMinutes) } }
   return allocatedFlex(next) <= availableFlex
+}
+
+export const clampFlexAllocations = (plan: WeeklyPlan, availableFlex: number) => {
+  let remaining = Math.max(0, availableFlex)
+  return WORK_TRACK_IDS.reduce<Record<string, number>>((allocations, trackId) => {
+    const kept = Math.min(Math.max(0, plan.flexAllocations[trackId] ?? 0), remaining)
+    allocations[trackId] = kept
+    remaining -= kept
+    return allocations
+  }, {})
+}
+
+export const applyDoneEarly = (plan: WeeklyPlan, trackId: string, completed: number, currentFloor: number): WeeklyPlan => ({
+  ...plan,
+  floorOverrides: { ...plan.floorOverrides, [trackId]: Math.min(Math.max(0, currentFloor), Math.max(0, completed)) },
+  flexAllocations: { ...plan.flexAllocations, [trackId]: 0 },
+})
+
+export const applyTemporaryReallocation = (
+  plan: WeeklyPlan,
+  targetTrackId: string,
+  requestedMinutes: number,
+  freeFlexMinutes: number,
+  requestedReleases: Record<string, number>,
+  sourceTracks: Track[],
+  settings: Pick<Settings, 'modeFloorProfiles'>,
+): WeeklyPlan => {
+  const requested = Math.max(0, requestedMinutes)
+  let remainingRelease = Math.max(0, requested - Math.max(0, freeFlexMinutes))
+  const floorOverrides = { ...plan.floorOverrides }
+  sourceTracks.forEach(track => {
+    if (remainingRelease <= 0 || track.id === targetTrackId) return
+    const floor = effectiveFloor(track, plan, settings)
+    const release = Math.min(floor, Math.max(0, requestedReleases[track.id] ?? 0), remainingRelease)
+    if (release > 0) {
+      floorOverrides[track.id] = floor - release
+      remainingRelease -= release
+    }
+  })
+  if (remainingRelease > 0) return plan
+  return {
+    ...plan,
+    floorOverrides,
+    flexAllocations: { ...plan.flexAllocations, [targetTrackId]: (plan.flexAllocations[targetTrackId] ?? 0) + requested },
+  }
 }
 
 export type ReminderKind = 'planning' | 'midweek'

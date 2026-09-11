@@ -3,7 +3,7 @@ import { addDays, format, parseISO } from 'date-fns'
 import { Check, Ellipsis, Flag, Gauge, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import type { PlannerData, Track, WeeklyCommitment, WeeklyMode, WeeklyPlan } from '../types'
 import {
-  WORK_TRACK_IDS, allocatedFlex, baseFlex, canAllocateFlex, completedTrackedMinutes, createWeeklyPlan, effectiveFloor, isTrackedWorkBlock,
+  WORK_TRACK_IDS, allocatedFlex, applyDoneEarly, applyTemporaryReallocation, baseFlex, canAllocateFlex, clampFlexAllocations, completedTrackedMinutes, createWeeklyPlan, effectiveFloor, isTrackedWorkBlock,
   overcommitAmount, plannedTrackedTotal, protectedTotal, trackProgress, unallocatedFlex, weekBlocks, weekKey, weeklyCapacity,
 } from '../lib/weekly'
 
@@ -54,22 +54,29 @@ export default function WeeklyDashboard({ data, setData, selectedDate, language,
   const overcommitted = overcommitAmount(planned, capacity)
   const protectedOvercommit = Math.max(0, protectedMinutes - capacity)
   const outcomes = [...(plan.topOutcomes ?? []), '', '', ''].slice(0, 3)
+  const savedOutcomes = (plan.topOutcomes ?? []).map(outcome => outcome.trim()).filter(Boolean).slice(0, 3)
   const focus = workTracks.find(track => track.id === plan.primaryFocusTrackId)
   const weekLabel = `${format(parseISO(start), language === 'zh' ? 'M月d日' : 'MMM d')} – ${format(parseISO(end), language === 'zh' ? 'M月d日' : 'MMM d')}`
   const upcoming = [...plan.commitments].sort((a, b) => a.dueAt.localeCompare(b.dueAt)).slice(0, 5)
 
-  const patchPlan = (patch: Partial<WeeklyPlan>) => setData(current => ({
-    ...current,
-    weeklyPlans: { ...current.weeklyPlans, [start]: { ...(current.weeklyPlans[start] ?? fallbackPlan), ...patch } },
-  }))
+  const patchPlan = (patch: Partial<WeeklyPlan>) => setData(current => {
+    const currentPlan = current.weeklyPlans[start] ?? fallbackPlan
+    const nextPlan = { ...currentPlan, ...patch }
+    const currentWorkTracks = WORK_TRACK_IDS.map(id => current.tracks.find(track => track.id === id)).filter((track): track is Track => !!track)
+    const nextAvailableFlex = baseFlex(
+      weeklyCapacity(nextPlan, current.settings.baseWeeklyCapacityMinutes),
+      protectedTotal(currentWorkTracks, nextPlan, current.settings),
+    )
+    return {
+      ...current,
+      weeklyPlans: { ...current.weeklyPlans, [start]: { ...nextPlan, flexAllocations: clampFlexAllocations(nextPlan, nextAvailableFlex) } },
+    }
+  })
   const setMode = (mode: WeeklyMode) => {
     const nextPlan = { ...plan, mode }
     const nextProtected = protectedTotal(workTracks, nextPlan, data.settings)
     const nextFlex = baseFlex(weeklyCapacity(nextPlan, data.settings.baseWeeklyCapacityMinutes), nextProtected)
-    let remaining = nextFlex
-    const flexAllocations: Record<string, number> = {}
-    WORK_TRACK_IDS.forEach(id => { const kept = Math.min(Math.max(0, plan.flexAllocations[id] ?? 0), remaining); flexAllocations[id] = kept; remaining -= kept })
-    patchPlan({ mode, flexAllocations })
+    patchPlan({ mode, flexAllocations: clampFlexAllocations(plan, nextFlex) })
   }
   const setAllocation = (trackId: string, requestedMinutes: number) => {
     const next = Math.max(0, Math.round(requestedMinutes / 30) * 30)
@@ -93,12 +100,11 @@ export default function WeeklyDashboard({ data, setData, selectedDate, language,
   const futureMinutes = futureBlocks.reduce((sum, block) => sum + (Number(block.endTime.slice(0, 2)) * 60 + Number(block.endTime.slice(3)) - Number(block.startTime.slice(0, 2)) * 60 - Number(block.startTime.slice(3))), 0)
   const confirmDoneEarly = () => {
     if (!doneTrack || !doneProgress) return
-    const nextFloor = Math.min(doneProgress.floor, doneProgress.completed)
     setData(current => {
       const currentPlan = current.weeklyPlans[start] ?? fallbackPlan
       return {
         ...current,
-        weeklyPlans: { ...current.weeklyPlans, [start]: { ...currentPlan, floorOverrides: { ...currentPlan.floorOverrides, [doneTrack.id]: nextFloor }, flexAllocations: { ...currentPlan.flexAllocations, [doneTrack.id]: 0 } } },
+        weeklyPlans: { ...current.weeklyPlans, [start]: applyDoneEarly(currentPlan, doneTrack.id, doneProgress.completed, doneProgress.floor) },
         timeBlocks: removeFuture ? current.timeBlocks.filter(block => !futureBlocks.some(future => future.id === block.id)) : current.timeBlocks,
       }
     })
@@ -112,9 +118,8 @@ export default function WeeklyDashboard({ data, setData, selectedDate, language,
   const applyOpportunity = () => {
     const requested = opportunityHours * 60
     if (requested <= 0 || released < opportunityNeed) return
-    const floorOverrides = { ...plan.floorOverrides }
-    sourceTracks.forEach(track => { const release = Math.min(effectiveFloor(track, plan, data.settings), releases[track.id] ?? 0); if (release > 0) floorOverrides[track.id] = effectiveFloor(track, plan, data.settings) - release })
-    patchPlan({ floorOverrides, flexAllocations: { ...plan.flexAllocations, [opportunityTarget]: (plan.flexAllocations[opportunityTarget] ?? 0) + requested } })
+    const next = applyTemporaryReallocation(plan, opportunityTarget, requested, freeFlex, releases, sourceTracks, data.settings)
+    patchPlan({ floorOverrides: next.floorOverrides, flexAllocations: next.flexAllocations })
     setOpportunityOpen(false); setReleases({}); setOpportunityHours(1)
   }
 
@@ -131,7 +136,7 @@ export default function WeeklyDashboard({ data, setData, selectedDate, language,
       return <div className={`track-progress track-status-${progress.status}`} key={track.id}><div className="track-progress-title"><i style={{ background: track.color }} /><b>{language === 'zh' ? track.name : track.nameEn}</b><span className="track-state">{progress.status === 'done' ? 'DONE' : progress.status === 'covered' ? 'COVERED' : 'UNSCHEDULED'}</span><div className="track-menu"><button className="ellipsis-button" onClick={() => setMenuTrackId(current => current === track.id ? undefined : track.id)} aria-label={language === 'zh' ? 'Track 操作' : 'Track actions'}><Ellipsis /></button>{menuTrackId === track.id && <div className="track-menu-popover"><button onClick={() => { setDoneEarlyTrackId(track.id); setMenuTrackId(undefined) }}>{language === 'zh' ? '本周提前完成' : 'Done early'}</button><button onClick={() => { setAdjustTrackId(track.id); setAdjustFloorHours(progress.floor / 60); setMenuTrackId(undefined) }}>{language === 'zh' ? '调整本周 Floor' : "Adjust this week's Floor"}</button></div>}</div></div><div className="track-bars segmented-track"><span className="completed-segment" style={{ width: `${completedWidth}%`, background: track.color }} /><span className="scheduled-segment" style={{ width: `${scheduledWidth}%`, background: track.color }} /></div><div className="track-numbers"><span><b>{hours(progress.completed)}</b> {language === 'zh' ? '完成' : 'done'}</span><span>{hours(progress.floor)} {language === 'zh' ? '保护' : 'protected'}</span><span>{progress.flex ? `+${hours(progress.flex)} flex` : '— flex'}</span><span>{hours(progress.budget)} budget</span><span>{hours(progress.scheduled)} {language === 'zh' ? '已排' : 'scheduled'}</span>{progress.need > 0 && <strong>NEED {hours(progress.need)}</strong>}</div></div>
     })}</div></div>
 
-    <aside className="weekly-panel this-week-panel"><span className="eyebrow">This week</span><h2>Top Outcomes</h2><ol>{outcomes.map((outcome, index) => <li key={index}>{outcome || '—'}</li>)}</ol><div className="upcoming-head"><div><span className="eyebrow">Upcoming</span><h2>{language === 'zh' ? '近期事项' : 'Commitments'}</h2></div><button className="module-add" onClick={() => setCommitmentDraft({ id: crypto.randomUUID(), title: '', dueAt: `${start}T23:59`, size: 'medium', done: false })}><Plus />{language === 'zh' ? '添加' : 'Add'}</button></div><div className="commitment-list">{upcoming.length ? upcoming.map(item => <div className={`commitment-item ${item.done ? 'done' : ''}`} key={item.id}><button className="commitment-check" onClick={() => saveCommitment({ ...item, done: !item.done })}>{item.done ? <Check /> : ''}</button><button className="commitment-copy" onClick={() => setCommitmentDraft(item)}><b>{item.title}</b><small>{item.dueAt.replace('T', ' · ')} · {sizeLabels[item.size][language]}</small></button><button className="commitment-delete" onClick={() => removeCommitment(item.id)}><Trash2 /></button></div>) : <p className="quiet-empty">{language === 'zh' ? '暂无近期 Deadline' : 'No upcoming commitments'}</p>}</div></aside></div>
+    <aside className="weekly-panel this-week-panel"><span className="eyebrow">This week</span><h2>Top Outcomes</h2>{savedOutcomes.length ? <ol>{savedOutcomes.map((outcome, index) => <li key={index}>{outcome}</li>)}</ol> : <div className="dashboard-empty"><p className="quiet-empty">{language === 'zh' ? '暂无本周目标' : 'No outcomes yet'}</p><button className="secondary" onClick={() => setReviewOpen(true)}>{language === 'zh' ? '开始本周规划' : 'Plan this week'}</button></div>}<div className="upcoming-head"><div><span className="eyebrow">Upcoming</span><h2>{language === 'zh' ? '近期事项' : 'Commitments'}</h2></div><button className="module-add" onClick={() => setCommitmentDraft({ id: crypto.randomUUID(), title: '', dueAt: `${start}T23:59`, size: 'medium', done: false })}><Plus />{language === 'zh' ? '添加' : 'Add'}</button></div><div className="commitment-list">{upcoming.length ? upcoming.map(item => <div className={`commitment-item ${item.done ? 'done' : ''}`} key={item.id}><button className="commitment-check" onClick={() => saveCommitment({ ...item, done: !item.done })}>{item.done ? <Check /> : ''}</button><button className="commitment-copy" onClick={() => setCommitmentDraft(item)}><b>{item.title}</b><small>{item.dueAt.replace('T', ' · ')} · {sizeLabels[item.size][language]}</small></button><button className="commitment-delete" onClick={() => removeCommitment(item.id)}><Trash2 /></button></div>) : <p className="quiet-empty">{language === 'zh' ? '暂无 Deadline' : 'No upcoming commitments'}</p>}</div></aside></div>
 
     <div className="flex-panel auto-flex"><div><span className="eyebrow">Flex</span><h2>{hours(availableFlex)} total · {hours(allocated)} allocated · {hours(freeFlex)} free</h2></div><div className="flex-allocations">{workTracks.map(track => { const value = plan.flexAllocations[track.id] ?? 0; return <label key={track.id}><span><i style={{ background: track.color }} />{language === 'zh' ? track.name : track.nameEn}</span><span className="flex-stepper"><button onClick={() => setAllocation(track.id, value - 30)}>−</button><b>{value ? `+${hours(value)}` : '—'}</b><button onClick={() => setAllocation(track.id, value + 30)}>+</button></span></label> })}</div><button className="secondary reallocate-button" onClick={() => setOpportunityOpen(true)}><RefreshCw />{language === 'zh' ? '临时重分配' : 'Temporary reallocation'}</button>{flexWarning && <p className="inline-warning">{flexWarning}</p>}</div>
 
