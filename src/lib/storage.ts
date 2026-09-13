@@ -11,7 +11,7 @@ const categories: Category[] = [
 ]
 
 export const defaultTracks: Track[] = [
-  { id: 'courses', name: 'Courses', nameEn: 'Courses', color: '#5876de', kind: 'goal', weeklyFloorMinutes: 900, weeklyTargetMinutes: 900, important: true, urgent: true, countsTowardWeeklyCapacity: true },
+  { id: 'courses', name: 'Courses', nameEn: 'Courses', color: '#5876de', kind: 'goal', weeklyFloorMinutes: 480, weeklyTargetMinutes: 480, important: true, urgent: true, countsTowardWeeklyCapacity: true },
   { id: 'ielts', name: 'IELTS', nameEn: 'IELTS', color: '#745fd1', kind: 'goal', weeklyFloorMinutes: 300, weeklyTargetMinutes: 300, important: true, urgent: false, countsTowardWeeklyCapacity: true },
   { id: 'urop', name: 'UROP', nameEn: 'UROP', color: '#159679', kind: 'goal', weeklyFloorMinutes: 300, weeklyTargetMinutes: 300, important: true, urgent: false, countsTowardWeeklyCapacity: true },
   { id: 'cuda', name: 'CUDA', nameEn: 'CUDA', color: '#d47838', kind: 'goal', weeklyFloorMinutes: 180, weeklyTargetMinutes: 180, important: true, urgent: false, countsTowardWeeklyCapacity: true },
@@ -117,7 +117,15 @@ export function migratePlannerData(value: unknown): PlannerData {
   const migratedTracks = defaultTracks.map(defaultTrack => {
     const existing = parsed.tracks?.find(track => track.id === defaultTrack.id)
     if (!existing) return defaultTrack
-    return { ...defaultTrack, ...existing, name: defaultTrack.name, nameEn: defaultTrack.nameEn, weeklyFloorMinutes: isPreV3 && defaultTrack.countsTowardWeeklyCapacity ? defaultTrack.weeklyFloorMinutes : existing.weeklyFloorMinutes, countsTowardWeeklyCapacity: defaultTrack.countsTowardWeeklyCapacity }
+    return {
+      ...defaultTrack,
+      ...existing,
+      name: defaultTrack.name,
+      nameEn: defaultTrack.nameEn,
+      weeklyFloorMinutes: existing.weeklyFloorMinutes ?? defaultTrack.weeklyFloorMinutes,
+      weeklyTargetMinutes: existing.weeklyTargetMinutes ?? existing.weeklyFloorMinutes ?? defaultTrack.weeklyTargetMinutes,
+      countsTowardWeeklyCapacity: defaultTrack.countsTowardWeeklyCapacity,
+    }
   })
   const extraTracks = (parsed.tracks ?? []).filter(track => !defaultTracks.some(defaultTrack => defaultTrack.id === track.id)).map(track => ({ ...track, countsTowardWeeklyCapacity: false }))
   const migratedPlans = Object.fromEntries(Object.entries(parsed.weeklyPlans ?? {}).map(([key, legacyPlan]) => {
@@ -128,19 +136,9 @@ export function migratePlannerData(value: unknown): PlannerData {
       commitments: legacyPlan.commitments ?? [],
       topOutcomes: (legacyPlan.topOutcomes ?? []).slice(0, 3),
     }
-    const profile = settings.modeFloorProfiles[plan.mode]
-    const protectedMinutes = migratedTracks
-      .filter(track => workTrackIds.includes(track.id))
-      .reduce((total, track) => total + Math.max(0, plan.floorOverrides[track.id]
-        ?? Math.round(track.weeklyFloorMinutes * Math.max(0, profile?.[track.id] ?? 1))), 0)
-    let remainingFlex = Math.max(0, (plan.capacityOverrideMinutes ?? settings.baseWeeklyCapacityMinutes) - protectedMinutes)
-    const flexAllocations = workTrackIds.reduce<Record<string, number>>((allocations, trackId) => {
-      const kept = Math.min(Math.max(0, plan.flexAllocations?.[trackId] ?? 0), remainingFlex)
-      allocations[trackId] = kept
-      remainingFlex -= kept
-      return allocations
-    }, {})
-    return [key, { ...plan, flexAllocations }]
+    // Allocations are user decisions. Keep them even when a Floor change makes
+    // Flex temporarily overallocated; the dashboard surfaces that state.
+    return [key, { ...plan, flexAllocations: plan.flexAllocations ?? {} }]
   }))
   return {
     schemaVersion: 4,

@@ -28,6 +28,7 @@ test('fresh storage initializes an empty workspace with exactly six default pres
   assert.equal(plan.primaryFocusTrackId, undefined)
   assert.equal(plan.capacityOverrideMinutes, undefined)
   assert.equal(data.settings.baseWeeklyCapacityMinutes, 2100)
+  assert.deepEqual(data.tracks.filter(track => ['courses', 'ielts', 'urop', 'cuda', 'stocklens'].includes(track.id)).map(track => track.weeklyFloorMinutes), [480, 300, 300, 180, 120])
   assert.deepEqual(data.blockTemplates.map(template => template.titleEn), ['Courses', 'IELTS', 'UROP', 'CUDA', 'StockLens', 'Gym'])
   assert.deepEqual(data.blockTemplates.map(template => template.countsTowardWeeklyCapacity), [true, true, true, true, true, false])
 })
@@ -113,4 +114,19 @@ test('legacy built-ins are replaced while custom templates are preserved', () =>
   assert.deepEqual(builtIns.map(template => template.titleEn), ['Courses', 'IELTS', 'UROP', 'CUDA', 'StockLens', 'Gym'])
   assert.deepEqual(customs.map(template => template.id), ['custom-1', 'custom-2'])
   assert.equal(migrated.blockTemplates.some(template => template.title.startsWith('Old built-in')), false)
+})
+
+test('migration preserves existing Base Floors and supplies new defaults only when a track is missing', () => {
+  const legacy = createDefaultData()
+  legacy.tracks = legacy.tracks.filter(track => track.id !== 'cuda').map(track => track.id === 'courses' ? { ...track, weeklyFloorMinutes: 360, weeklyTargetMinutes: 360 } : track)
+  const migrated = migratePlannerData(legacy)
+  assert.equal(migrated.tracks.find(track => track.id === 'courses')?.weeklyFloorMinutes, 360)
+  assert.equal(migrated.tracks.find(track => track.id === 'cuda')?.weeklyFloorMinutes, 180)
+})
+
+test('pre-v3 migration does not overwrite a user-customized Base Floor', () => {
+  const legacy = { ...createDefaultData(), schemaVersion: 1 }
+  legacy.tracks = legacy.tracks.map(track => track.id === 'courses' ? { ...track, weeklyFloorMinutes: 360, weeklyTargetMinutes: 360 } : track)
+  const migrated = migratePlannerData(legacy)
+  assert.equal(migrated.tracks.find(track => track.id === 'courses')?.weeklyFloorMinutes, 360)
 })
