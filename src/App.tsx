@@ -10,6 +10,7 @@ import { createDefaultData, isPlannerData, loadData, migratePlannerData, resetDa
 import { dateLabel, duration, iso, monthDays, monthLabel, weekDays } from './lib/dates'
 import { parseIcsCalendar, uniqueIcsBlocks } from './lib/ics'
 import { completedMinutes as actualCompletedMinutes, createWeeklyPlan, dueReminder, weekKey, WORK_TRACK_IDS } from './lib/weekly'
+import { clearCloudSession, isCloudConfigured, loadCloudData, loadCloudSession, saveCloudData, signInToCloud, signUpForCloud, type CloudSession } from './lib/cloud-sync'
 import NewsPage from './components/NewsPage'
 import WeeklyDashboard from './components/WeeklyDashboard'
 
@@ -23,7 +24,7 @@ const text = {
     done: '完成', skip: '跳过', pending: '待完成', conflict: '发生冲突',
     export: '导出 JSON 备份', import: '导入 JSON 备份', reset: '重置为空白工作区',
     language: '界面语言', appearance: '外观', system: '跟随系统', light: '浅色', dark: '深色',
-    local: '数据仅保存在当前浏览器', save: '已自动保存', templateHint: '模板只定义持续时间。拖入日视图的时间轴，再决定具体开始时间。',
+    local: '默认保存在当前浏览器，也可启用跨设备同步', save: '已自动保存', templateHint: '模板只定义持续时间。拖入日视图的时间轴，再决定具体开始时间。',
   },
   en: {
     month: 'Month', week: 'Week', day: 'Day', now: 'Now', news: 'Brief', templates: 'Templates', settings: 'Settings',
@@ -34,7 +35,7 @@ const text = {
     done: 'Done', skip: 'Skip', pending: 'Pending', conflict: 'Conflict',
     export: 'Export JSON backup', import: 'Import JSON backup', reset: 'Reset workspace',
     language: 'Language', appearance: 'Appearance', system: 'System', light: 'Light', dark: 'Dark',
-    local: 'Data stays in this browser only', save: 'Saved automatically', templateHint: 'Templates define duration only. Drag one onto the day timeline to choose its start time.',
+    local: 'Stored locally by default, with optional cross-device sync', save: 'Saved automatically', templateHint: 'Templates define duration only. Drag one onto the day timeline to choose its start time.',
   },
 } as const
 
@@ -138,15 +139,58 @@ export default function App() {
   const [moduleModal, setModuleModal] = useState<{ open: boolean; template?: BlockTemplate }>({ open: false })
   const [notice, setNotice] = useState('')
   const [reviewRequested, setReviewRequested] = useState(false)
+  const [cloudSession, setCloudSession] = useState<CloudSession | undefined>(() => loadCloudSession())
+  const [cloudReady, setCloudReady] = useState(false)
+  const [cloudStatus, setCloudStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle')
   const importRef = useRef<HTMLInputElement>(null)
   const icsRef = useRef<HTMLInputElement>(null)
+  const lastDataChangeRef = useRef(Date.now())
   const language = data.settings.language
   const t = text[language]
 
   useEffect(() => {
+    lastDataChangeRef.current = Date.now()
     const timer = window.setTimeout(() => saveData(data), 250)
     return () => window.clearTimeout(timer)
   }, [data])
+
+  useEffect(() => {
+    if (!cloudSession) { setCloudReady(false); setCloudStatus('idle'); return }
+    let cancelled = false
+    setCloudStatus('syncing')
+    void loadCloudData(cloudSession).then(async remote => {
+      if (cancelled) return
+      if (remote && isPlannerData(remote)) setData(migratePlannerData(remote))
+      else await saveCloudData(cloudSession, data)
+      if (cancelled) return
+      setCloudReady(true); setCloudStatus('synced')
+    }).catch(() => { if (!cancelled) setCloudStatus('error') })
+    return () => { cancelled = true }
+  // A session change deliberately determines the one-time initial cloud restore.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloudSession])
+
+  useEffect(() => {
+    if (!cloudSession || !cloudReady) return
+    const timer = window.setTimeout(() => {
+      setCloudStatus('syncing')
+      void saveCloudData(cloudSession, data).then(() => setCloudStatus('synced')).catch(() => setCloudStatus('error'))
+    }, 900)
+    return () => window.clearTimeout(timer)
+  }, [cloudSession, cloudReady, data])
+
+  useEffect(() => {
+    if (!cloudSession || !cloudReady) return
+    const pullLatest = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastDataChangeRef.current < 2_000) return
+      void loadCloudData(cloudSession).then(remote => {
+        if (remote && isPlannerData(remote) && JSON.stringify(remote) !== JSON.stringify(data)) setData(migratePlannerData(remote))
+      }).catch(() => setCloudStatus('error'))
+    }
+    document.addEventListener('visibilitychange', pullLatest)
+    const timer = window.setInterval(pullLatest, 30_000)
+    return () => { document.removeEventListener('visibilitychange', pullLatest); window.clearInterval(timer) }
+  }, [cloudSession, cloudReady, data])
 
   useEffect(() => {
     document.documentElement.dataset.theme = data.settings.theme
@@ -282,7 +326,7 @@ export default function App() {
         {view === 'week' && <WeekView {...{ data, setData, selectedDate, language, t, conflicts, setSelectedDate, setView, reviewRequested }} onReviewOpened={() => setReviewRequested(false)} />}
         {view === 'month' && <MonthView {...{ data, selectedDate, language, conflicts, setSelectedDate, setView }} />}
         {view === 'news' && <NewsPage language={language} />}
-        {view === 'settings' && <SettingsView {...{ data, setData, t, exportData, importRef, icsRef, resetWorkspace }} />}
+        {view === 'settings' && <SettingsView {...{ data, setData, t, exportData, importRef, icsRef, resetWorkspace, cloudSession, cloudStatus }} onCloudSession={setCloudSession} onCloudLogout={() => { clearCloudSession(); setCloudSession(undefined) }} />}
       </div>
     </main>
 
@@ -513,7 +557,7 @@ function MonthView({ data, selectedDate, language, conflicts, setSelectedDate, s
   </>
 }
 
-function SettingsView({ data, setData, t, exportData, importRef, icsRef, resetWorkspace }: { data: PlannerData; setData: React.Dispatch<React.SetStateAction<PlannerData>>; t: SharedProps['t']; exportData: () => void; importRef: React.RefObject<HTMLInputElement | null>; icsRef: React.RefObject<HTMLInputElement | null>; resetWorkspace: () => void }) {
+function SettingsView({ data, setData, t, exportData, importRef, icsRef, resetWorkspace, cloudSession, cloudStatus, onCloudSession, onCloudLogout }: { data: PlannerData; setData: React.Dispatch<React.SetStateAction<PlannerData>>; t: SharedProps['t']; exportData: () => void; importRef: React.RefObject<HTMLInputElement | null>; icsRef: React.RefObject<HTMLInputElement | null>; resetWorkspace: () => void; cloudSession?: CloudSession; cloudStatus: 'idle' | 'syncing' | 'synced' | 'error'; onCloudSession: (session: CloudSession) => void; onCloudLogout: () => void }) {
   const patch = (settingsPatch: Partial<PlannerData['settings']>) => setData(current => ({ ...current, settings: { ...current.settings, ...settingsPatch } }))
   const patchBaseFloor = (trackId: string, hours: number) => setData(current => ({ ...current, tracks: current.tracks.map(track => track.id === trackId ? { ...track, weeklyFloorMinutes: Math.max(0, hours * 60), weeklyTargetMinutes: Math.max(0, hours * 60) } : track) }))
   const language = data.settings.language
@@ -529,11 +573,33 @@ function SettingsView({ data, setData, t, exportData, importRef, icsRef, resetWo
     <section className="page-title"><span className="eyebrow">{t.settings}</span><h1>{data.settings.language === 'zh' ? '让计划适合你' : 'Make it yours'}</h1><p>{t.local}</p></section>
     <section className="settings-card"><div><Languages /><span><b>{t.language}</b><small>简体中文 / English</small></span></div><div className="segmented"><button className={data.settings.language === 'zh' ? 'active' : ''} onClick={() => patch({ language: 'zh' })}>中文</button><button className={data.settings.language === 'en' ? 'active' : ''} onClick={() => patch({ language: 'en' })}>English</button></div></section>
     <section className="settings-card"><div><Sun /><span><b>{t.appearance}</b><small>{t[data.settings.theme]}</small></span></div><div className="segmented">{(['system','light','dark'] as const).map(theme => <button className={data.settings.theme === theme ? 'active' : ''} onClick={() => patch({ theme })} key={theme}>{t[theme]}</button>)}</div></section>
+    <CloudSyncCard language={language} session={cloudSession} status={cloudStatus} onSession={onCloudSession} onLogout={onCloudLogout} />
     <section className="settings-card settings-column"><div><CalendarRange /><span><b>{language === 'zh' ? 'ICS 课程表' : 'ICS timetable'}</b><small>{language === 'zh' ? '本地解析；支持 Weekly、UNTIL、EXDATE 与香港时区' : 'Parsed locally; supports Weekly, UNTIL, EXDATE and Hong Kong time'}</small></span></div><div className="settings-inline"><button className="secondary" onClick={() => icsRef.current?.click()}><FileUp />{language === 'zh' ? '导入 .ics' : 'Import .ics'}</button>{latestImport ? <small>{latestImport.fileName} · {importedCourseCount} {language === 'zh' ? '个课程事件' : 'course events'}</small> : <small>{language === 'zh' ? '尚未导入' : 'No imports yet'}</small>}{importedCourseCount > 0 && <button className="danger-button" onClick={clearImportedCourses}><Trash2 />{language === 'zh' ? '清除已导入课程' : 'Clear imported courses'}</button>}</div></section>
     <section className="settings-card settings-column"><div><Gauge /><span><b>{language === 'zh' ? '每周工作资源' : 'Weekly work resources'}</b><small>{language === 'zh' ? '长期 Base Floors；系统会按本周模式自动计算保护预算与 Flex。' : 'Long-term Base Floors; this week’s mode calculates protected budget and Flex.'}</small></span></div><label className="capacity-setting"><span>{language === 'zh' ? 'Base Weekly Capacity' : 'Base Weekly Capacity'}</span><input type="number" min="0" step="0.5" value={data.settings.baseWeeklyCapacityMinutes / 60} onChange={event => patch({ baseWeeklyCapacityMinutes: Math.max(0, Number(event.target.value) * 60) })} /><small>h</small></label><div className="base-floor-settings"><b>Base Floors</b>{workTracks.map(track => <label key={track.id}><span>{language === 'zh' ? track.name : track.nameEn}</span><input type="number" min="0" step="0.5" value={track.weeklyFloorMinutes / 60} onChange={event => patchBaseFloor(track.id, Number(event.target.value))} /><small>h</small></label>)}</div><details className="profile-settings"><summary>{language === 'zh' ? '编辑模式乘数' : 'Edit mode multipliers'}</summary><div className="profile-matrix"><span />{(['normal','busy','crunch','deload'] as const).map(mode => <b key={mode}>{mode}</b>)}{workTracks.map(track => <div className="profile-row" key={track.id}><strong>{language === 'zh' ? track.name : track.nameEn}<small>{track.weeklyFloorMinutes / 60}h base</small></strong>{(['normal','busy','crunch','deload'] as const).map(mode => <label key={mode}><input type="number" min="0" max="2" step="0.1" value={data.settings.modeFloorProfiles[mode][track.id] ?? 1} onChange={event => patch({ modeFloorProfiles: { ...data.settings.modeFloorProfiles, [mode]: { ...data.settings.modeFloorProfiles[mode], [track.id]: Math.max(0, Number(event.target.value)) } } })} /><span>×</span></label>)}</div>)}</div></details></section>
     <section className="settings-card settings-column"><div><Clock3 /><span><b>{language === 'zh' ? '站内提醒' : 'In-app reminders'}</b><small>{language === 'zh' ? '在设定时间后的首次打开时显示' : 'Shown on the first visit after the scheduled time'}</small></span></div><div className="reminder-settings"><label><input type="checkbox" checked={data.settings.reminders.planningEnabled} onChange={event => patch({ reminders: { ...data.settings.reminders, planningEnabled: event.target.checked } })} /> Weekly Planning</label><select value={data.settings.reminders.planningWeekday} onChange={event => patch({ reminders: { ...data.settings.reminders, planningWeekday: Number(event.target.value) } })}>{weekdayLabels.map((label, index) => <option value={index} key={label}>{label}</option>)}</select><input type="number" min="0" max="23" value={data.settings.reminders.planningHour} onChange={event => patch({ reminders: { ...data.settings.reminders, planningHour: Math.max(0, Math.min(23, Number(event.target.value))) } })} /><span>:00</span><label><input type="checkbox" checked={data.settings.reminders.midweekEnabled} onChange={event => patch({ reminders: { ...data.settings.reminders, midweekEnabled: event.target.checked } })} /> Midweek Check</label><select value={data.settings.reminders.midweekWeekday} onChange={event => patch({ reminders: { ...data.settings.reminders, midweekWeekday: Number(event.target.value) } })}>{weekdayLabels.map((label, index) => <option value={index} key={label}>{label}</option>)}</select><input type="number" min="0" max="23" value={data.settings.reminders.midweekHour} onChange={event => patch({ reminders: { ...data.settings.reminders, midweekHour: Math.max(0, Math.min(23, Number(event.target.value))) } })} /><span>:00</span></div></section>
     <section className="settings-card data-actions"><div><Download /><span><b>{data.settings.language === 'zh' ? '数据与备份' : 'Data & backup'}</b><small>JSON</small></span></div><div><button className="secondary" onClick={exportData}><Download />{t.export}</button><button className="secondary" onClick={() => importRef.current?.click()}><FileUp />{t.import}</button><button className="danger-button" onClick={resetWorkspace}><RotateCcw />{t.reset}</button></div></section>
   </div>
+}
+
+function CloudSyncCard({ language, session, status, onSession, onLogout }: { language: 'zh' | 'en'; session?: CloudSession; status: 'idle' | 'syncing' | 'synced' | 'error'; onSession: (session: CloudSession) => void; onLogout: () => void }) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+  const configured = isCloudConfigured()
+  const submit = async (kind: 'sign-in' | 'sign-up') => {
+    if (!email || password.length < 6) { setMessage(language === 'zh' ? '请输入邮箱与至少 6 位密码。' : 'Enter an email and a password of at least 6 characters.'); return }
+    setBusy(true); setMessage('')
+    try {
+      const next = kind === 'sign-in' ? await signInToCloud(email, password) : await signUpForCloud(email, password)
+      if (next) onSession(next)
+      else setMessage(language === 'zh' ? '验证邮件已发送。验证后请登录。' : 'Verification email sent. Sign in after verifying.')
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Cloud sync failed.') }
+    finally { setBusy(false) }
+  }
+  const statusText = status === 'syncing' ? (language === 'zh' ? '正在同步…' : 'Syncing…') : status === 'synced' ? (language === 'zh' ? '已同步' : 'Synced') : status === 'error' ? (language === 'zh' ? '同步失败，请检查网络或配置' : 'Sync failed. Check network or setup.') : ''
+
+  return <section className="settings-card settings-column cloud-sync-card"><div><Layers3 /><span><b>{language === 'zh' ? '跨设备同步' : 'Cross-device sync'}</b><small>{language === 'zh' ? '登录同一账号后，电脑与手机自动同步。' : 'Sign in to the same account to sync phone and computer.'}</small></span></div>{!configured ? <p className="cloud-note">{language === 'zh' ? '尚未配置 Supabase。请按照 .env.example 与 supabase/schema.sql 完成一次配置后重新部署。' : 'Supabase is not configured. Complete .env.example and supabase/schema.sql, then redeploy.'}</p> : session ? <div className="cloud-connected"><span><i className={`save-dot ${status === 'error' ? 'sync-error' : ''}`} />{session.email ?? (language === 'zh' ? '已登录' : 'Signed in')} · {statusText || (language === 'zh' ? '准备同步' : 'Ready')}</span><button className="secondary" onClick={onLogout}>{language === 'zh' ? '退出同步账号' : 'Sign out'}</button></div> : <div className="cloud-login"><input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder={language === 'zh' ? '邮箱' : 'Email'} autoComplete="email" /><input type="password" value={password} onChange={event => setPassword(event.target.value)} placeholder={language === 'zh' ? '密码（至少 6 位）' : 'Password (6+ characters)'} autoComplete="current-password" /><div><button className="primary" disabled={busy} onClick={() => void submit('sign-in')}>{language === 'zh' ? '登录并同步' : 'Sign in & sync'}</button><button className="secondary" disabled={busy} onClick={() => void submit('sign-up')}>{language === 'zh' ? '创建账号' : 'Create account'}</button></div></div>}{message && <p className="inline-warning">{message}</p>}</section>
 }
 
 function TimeRangePicker({ startTime, endTime, language, onChange }: {

@@ -32,7 +32,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Collect news from public RSS feeds
         run: pnpm run news:generate
-      - run: pnpm run build
+      - name: Build application
+        run: pnpm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
