@@ -459,7 +459,7 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
           {blocks.map(block => <article
             tabIndex={0}
             draggable={editMode && block.canMove}
-            className={`scheduled-piece ${duration(block.startTime, block.endTime) <= 30 ? 'compact' : ''} ${block.status} ${conflicts.has(block.id) ? 'conflicting' : ''} ${editMode ? 'movable' : ''}`}
+            className={`scheduled-piece ${duration(block.startTime, block.endTime) <= 30 ? 'compact' : ''} ${duration(block.startTime, block.endTime) <= 10 ? 'tiny' : ''} ${block.status} ${conflicts.has(block.id) ? 'conflicting' : ''} ${editMode ? 'movable' : ''}`}
             style={{ '--module': block.color, top: (timeToMinutes(block.startTime) - timelineStart) / 60 * hourHeight, height: duration(block.startTime, block.endTime) / 60 * hourHeight } as React.CSSProperties}
             onClick={event => { event.stopPropagation(); setModal({ open: true, block }) }}
             onDragStart={event => {
@@ -479,7 +479,7 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
             key={block.id}
           >
             <span className="scheduled-accent" />
-            <div className="scheduled-content"><div><strong>{block.icon && <span>{block.icon}</span>}{language === 'en' && block.titleEn ? block.titleEn : block.title}</strong><small>{block.startTime} — {block.endTime} · {duration(block.startTime, block.endTime)} min{block.status === 'partial' ? ` · ${block.completedMinutes ?? 0} min ${language === 'zh' ? '完成' : 'done'}` : ''}</small></div><div className="scheduled-actions"><button onClick={event => { event.stopPropagation(); const next = block.status === 'pending' ? 'partial' : block.status === 'partial' ? 'completed' : 'pending'; updateBlock(block.id, { status: next, completedMinutes: next === 'completed' ? duration(block.startTime, block.endTime) : next === 'partial' ? Math.round(duration(block.startTime, block.endTime) / 2) : 0 }) }} aria-label={language === 'zh' ? '切换未开始、部分完成和已完成' : 'Cycle not started, partial and complete'} title={language === 'zh' ? '点击切换完成状态' : 'Cycle completion status'}><Check /></button>{editMode && <button onClick={event => { event.stopPropagation(); removeBlock(block.id) }} aria-label="Delete"><Trash2 /></button>}</div></div>
+            <div className="scheduled-content"><div><strong>{block.icon && <span>{block.icon}</span>}{language === 'en' && block.titleEn ? block.titleEn : block.title}</strong><small>{block.startTime} — {block.endTime} · {duration(block.startTime, block.endTime)} min{block.status === 'partial' ? ` · ${block.completedMinutes ?? 0} min ${language === 'zh' ? '完成' : 'done'}` : ''}</small>{block.note && <p className="scheduled-note" title={block.note}>{block.note}</p>}</div><div className="scheduled-actions"><button onClick={event => { event.stopPropagation(); const next = block.status === 'pending' ? 'partial' : block.status === 'partial' ? 'completed' : 'pending'; updateBlock(block.id, { status: next, completedMinutes: next === 'completed' ? duration(block.startTime, block.endTime) : next === 'partial' ? Math.round(duration(block.startTime, block.endTime) / 2) : 0 }) }} aria-label={language === 'zh' ? '切换未开始、部分完成和已完成' : 'Cycle not started, partial and complete'} title={language === 'zh' ? '点击切换完成状态' : 'Cycle completion status'}><Check /></button>{editMode && <button onClick={event => { event.stopPropagation(); removeBlock(block.id) }} aria-label="Delete"><Trash2 /></button>}</div></div>
           </article>)}
         </div>
       </section>
@@ -616,6 +616,18 @@ function TimeRangePicker({ startTime, endTime, language, onChange }: {
   const startPercent = start / max * 100
   const endPercent = end / max * 100
   const totalMinutes = end - start
+  const maxDuration = max - start
+  const durationHours = Math.floor(totalMinutes / 60)
+  const durationMinutes = totalMinutes % 60
+  const hourOptions = Array.from({ length: Math.floor(maxDuration / 60) + 1 }, (_, index) => index)
+  const minuteOptions = Array.from(new Set([...Array.from({ length: 6 }, (_, index) => index * step), durationMinutes])).sort((a, b) => a - b).filter(minutes => {
+    const optionDuration = durationHours * 60 + minutes
+    return optionDuration >= step && optionDuration <= maxDuration
+  })
+  const setDuration = (nextDuration: number) => {
+    const safeDuration = Math.max(step, Math.min(maxDuration, snapMinutes(nextDuration)))
+    onChange(timeFromMinutes(start), timeFromMinutes(start + safeDuration))
+  }
   const durationLabel = language === 'zh'
     ? `${Math.floor(totalMinutes / 60)} 小时 ${totalMinutes % 60} 分钟`
     : `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`
@@ -629,6 +641,33 @@ function TimeRangePicker({ startTime, endTime, language, onChange }: {
       <div className="time-value"><span>{language === 'zh' ? '开始' : 'Start'}</span><strong>{timeFromMinutes(start)}</strong></div>
       <span className="time-value-arrow">→</span>
       <div className="time-value"><span>{language === 'zh' ? '结束' : 'End'}</span><strong>{timeFromMinutes(end)}</strong></div>
+    </div>
+    <div className="duration-direct">
+      <span>{language === 'zh' ? '直接设置持续时间' : 'Set duration directly'}</span>
+      <label>
+        <select
+          value={durationHours}
+          aria-label={language === 'zh' ? '持续小时数' : 'Duration hours'}
+          onChange={event => {
+            const nextHours = Number(event.target.value)
+            const allowedMinutes = Math.max(0, Math.min(durationMinutes, maxDuration - nextHours * 60))
+            setDuration(nextHours * 60 + Math.floor(allowedMinutes / step) * step)
+          }}
+        >
+          {hourOptions.map(hours => <option key={hours} value={hours}>{hours}</option>)}
+        </select>
+        <b>{language === 'zh' ? '小时' : 'hr'}</b>
+      </label>
+      <label>
+        <select
+          value={durationMinutes}
+          aria-label={language === 'zh' ? '持续分钟数' : 'Duration minutes'}
+          onChange={event => setDuration(durationHours * 60 + Number(event.target.value))}
+        >
+          {minuteOptions.map(minutes => <option key={minutes} value={minutes}>{minutes}</option>)}
+        </select>
+        <b>{language === 'zh' ? '分钟' : 'min'}</b>
+      </label>
     </div>
     <div className="time-range" style={{ '--start': `${startPercent}%`, '--end': `${endPercent}%` } as React.CSSProperties}>
       <div className="time-track" />
@@ -660,7 +699,7 @@ function TimeRangePicker({ startTime, endTime, language, onChange }: {
       />
     </div>
     <div className="time-ticks" aria-hidden="true"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
-    <p className="time-picker-hint">{language === 'zh' ? '拖动两个圆点调整时间，每次 10 分钟。' : 'Drag either handle to adjust in 10-minute steps.'}</p>
+    <p className="time-picker-hint">{language === 'zh' ? '可直接选择持续时间，也可拖动圆点微调；每次 10 分钟。' : 'Choose a duration directly or fine-tune with the handles in 10-minute steps.'}</p>
   </section>
 }
 
