@@ -90,3 +90,12 @@
 .memo-kinds{display:flex;gap:6px;flex-wrap:wrap}.memo-kinds span{padding:5px 8px;border-radius:99px;background:var(--soft);color:var(--muted);font-size:9px;font-weight:700}
 .daily-memo footer small{color:var(--muted);font-size:9px;font-variant-numeric:tabular-nums}
 @media(max-width:600px){.daily-memo{padding:16px;border-radius:17px}.daily-memo header{display:grid;gap:10px}.memo-save-state{justify-self:start}.daily-memo h1{font-size:24px}.daily-memo textarea{min-height:170px}.daily-memo footer{align-items:flex-end}}
+
+/* Keep the full-day timeline useful without letting it stretch the page. */
+.day-builder{height:clamp(440px,62vh,560px);align-items:stretch}
+.module-dock{height:100%;max-height:none}.module-stack{max-height:calc(100% - 57px)}
+.schedule-board{height:100%;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.schedule-instructions{position:sticky;top:0;z-index:6;background:color-mix(in srgb,var(--panel) 94%,transparent);backdrop-filter:blur(12px)}
+.schedule-instructions>div{display:grid;gap:3px}.schedule-instructions small{color:var(--muted);font-size:8px}
+.schedule-board::-webkit-scrollbar,.module-stack::-webkit-scrollbar{width:8px;height:8px}.schedule-board::-webkit-scrollbar-thumb,.module-stack::-webkit-scrollbar-thumb{border:2px solid var(--panel);border-radius:99px;background:color-mix(in srgb,var(--muted) 42%,transparent)}
+@media(max-width:900px){.day-builder{height:auto}.module-dock{height:auto}.module-stack{max-height:none}.schedule-board{height:clamp(430px,64vh,560px)}}
