@@ -61,11 +61,12 @@ const blockMinutes = (block: { startTime: string; endTime: string }) => {
 
 export function createDefaultData(): PlannerData {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     settings: defaultSettings,
     categories,
     blockTemplates,
     timeBlocks: [],
+    dailyMemos: {},
     summerPhases: [],
     tracks: defaultTracks,
     weeklyPlans: {},
@@ -83,7 +84,7 @@ type LegacyData = Partial<Omit<PlannerData, 'schemaVersion' | 'settings'>> & {
 export function isPlannerData(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
   const data = value as LegacyData
-  return ([1, 2, 3, 4].includes(data.schemaVersion ?? 0)) && !!data.settings && Array.isArray(data.categories) &&
+  return ([1, 2, 3, 4, 5].includes(data.schemaVersion ?? 0)) && !!data.settings && Array.isArray(data.categories) &&
     Array.isArray(data.blockTemplates) && Array.isArray(data.timeBlocks) && Array.isArray(data.summerPhases) &&
     data.timeBlocks.every(block => typeof block.id === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(block.date))
 }
@@ -141,7 +142,7 @@ export function migratePlannerData(value: unknown): PlannerData {
     return [key, { ...plan, flexAllocations: plan.flexAllocations ?? {} }]
   }))
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     settings,
     categories: parsed.categories!,
     blockTemplates: [...blockTemplates, ...parsed.blockTemplates!.filter(template => !isLegacyBuffer(template) && template.isBuiltIn !== true && !template.id.startsWith('ics-template-')).map(template => {
@@ -155,6 +156,7 @@ export function migratePlannerData(value: unknown): PlannerData {
       const fixedCourse = trackId === 'courses' && (clean.source === 'ics' || clean.isFixed)
       return { ...clean, trackId, completedMinutes: clean.completedMinutes ?? (clean.status === 'completed' ? blockMinutes(clean) : 0), countsTowardWeeklyCapacity: clean.countsTowardWeeklyCapacity ?? (!fixedCourse && ['courses', 'ielts', 'urop', 'cuda', 'stocklens'].includes(trackId)) }
     }),
+    dailyMemos: parsed.dailyMemos ?? {},
     summerPhases: parsed.summerPhases!,
     tracks: [...migratedTracks, ...extraTracks],
     weeklyPlans: migratedPlans,

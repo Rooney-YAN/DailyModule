@@ -20,6 +20,7 @@ test('fresh storage initializes an empty workspace with exactly six default pres
   const plan = createWeeklyPlan('2026-09-14')
 
   assert.deepEqual(data.timeBlocks, [])
+  assert.deepEqual(data.dailyMemos, {})
   assert.deepEqual(data.weeklyPlans, {})
   assert.deepEqual(plan.topOutcomes, [])
   assert.deepEqual(plan.commitments, [])
@@ -74,7 +75,8 @@ test('schema v1 migration preserves existing real blocks and weekly plans', () =
     weeklyPlans: { '2026-09-07': { ...createWeeklyPlan('2026-09-07'), topOutcomes: ['真实目标'], flexAllocations: { ielts: 60 } } },
   }
   const migrated = migratePlannerData(legacy)
-  assert.equal(migrated.schemaVersion, 4)
+  assert.equal(migrated.schemaVersion, 5)
+  assert.deepEqual(migrated.dailyMemos, {})
   assert.equal(migrated.timeBlocks.length, 1)
   assert.equal(migrated.timeBlocks[0].id, 'old-block')
   assert.equal(migrated.timeBlocks[0].trackId, 'ielts')
@@ -110,7 +112,7 @@ test('legacy built-ins are replaced while custom templates are preserved', () =>
   const builtIns = migrated.blockTemplates.filter(template => template.isBuiltIn)
   const customs = migrated.blockTemplates.filter(template => !template.isBuiltIn)
 
-  assert.equal(migrated.schemaVersion, 4)
+  assert.equal(migrated.schemaVersion, 5)
   assert.deepEqual(builtIns.map(template => template.titleEn), ['Courses', 'IELTS', 'UROP', 'CUDA', 'StockLens', 'Gym'])
   assert.deepEqual(customs.map(template => template.id), ['custom-1', 'custom-2'])
   assert.equal(migrated.blockTemplates.some(template => template.title.startsWith('Old built-in')), false)

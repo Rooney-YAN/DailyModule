@@ -136,11 +136,12 @@ export type Settings = {
 }
 
 export type PlannerData = {
-  schemaVersion: 4
+  schemaVersion: 5
   settings: Settings
   categories: Category[]
   blockTemplates: BlockTemplate[]
   timeBlocks: TimeBlock[]
+  dailyMemos: Record<string, string>
   summerPhases: SummerPhase[]
   tracks: Track[]
   weeklyPlans: Record<string, WeeklyPlan>

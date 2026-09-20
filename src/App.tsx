@@ -9,7 +9,7 @@ import type { BlockTemplate, PlannerData, TimeBlock, Track, View } from './types
 import { createDefaultData, isPlannerData, loadData, migratePlannerData, resetData, saveData } from './lib/storage'
 import { dateLabel, duration, iso, monthDays, monthLabel, weekDays } from './lib/dates'
 import { parseIcsCalendar, uniqueIcsBlocks } from './lib/ics'
-import { completedMinutes as actualCompletedMinutes, createWeeklyPlan, dueReminder, weekKey, WORK_TRACK_IDS } from './lib/weekly'
+import { createWeeklyPlan, dueReminder, weekKey, WORK_TRACK_IDS } from './lib/weekly'
 import { clearCloudSession, isCloudConfigured, loadCloudData, loadCloudSession, saveCloudData, signInToCloud, signUpForCloud, type CloudSession } from './lib/cloud-sync'
 import NewsPage from './components/NewsPage'
 import WeeklyDashboard from './components/WeeklyDashboard'
@@ -38,41 +38,6 @@ const text = {
     local: 'Stored locally by default, with optional cross-device sync', save: 'Saved automatically', templateHint: 'Templates define duration only. Drag one onto the day timeline to choose its start time.',
   },
 } as const
-
-const dailyQuotes = [
-  { zh: '失去的时间，再也找不回来。', en: 'Lost time is never found again.', authorZh: '本杰明·富兰克林', authorEn: 'Benjamin Franklin' },
-  { zh: '不要挥霍时间，因为时间是构成生命的材料。', en: 'Do not squander time, for that is the stuff life is made of.', authorZh: '本杰明·富兰克林', authorEn: 'Benjamin Franklin' },
-  { zh: '今日能做之事，切勿留到明日。', en: 'Never leave that till tomorrow which you can do today.', authorZh: '本杰明·富兰克林', authorEn: 'Benjamin Franklin' },
-  { zh: '勤奋是好运之母。', en: 'Diligence is the mother of good luck.', authorZh: '本杰明·富兰克林', authorEn: 'Benjamin Franklin' },
-  { zh: '不是生命太短，而是我们浪费了太多时间。', en: 'It is not that we have a short time to live, but that we waste much of it.', authorZh: '塞涅卡', authorEn: 'Seneca' },
-  { zh: '我们常常不是时间太少，而是失去得太多。', en: 'We do not have too little time; we lose much of it.', authorZh: '塞涅卡', authorEn: 'Seneca' },
-  { zh: '当我们一再拖延，生命便匆匆而过。', en: 'While we postpone, life speeds by.', authorZh: '塞涅卡', authorEn: 'Seneca' },
-  { zh: '没有目的地的人，不会有顺风。', en: 'No wind is favorable to one who does not know the harbor.', authorZh: '塞涅卡', authorEn: 'Seneca' },
-  { zh: '不要再争论一个好人应该是什么样子。去成为一个好人。', en: 'Waste no more time arguing what a good person should be. Be one.', authorZh: '马可·奥勒留', authorEn: 'Marcus Aurelius' },
-  { zh: '只要做眼前之事，并且把它做好。', en: 'Do what is before you, and do it well.', authorZh: '马可·奥勒留', authorEn: 'Marcus Aurelius' },
-  { zh: '行动的障碍，反而能推动行动。', en: 'The impediment to action advances action.', authorZh: '马可·奥勒留', authorEn: 'Marcus Aurelius' },
-  { zh: '你思想的品质，决定你生活的品质。', en: 'The happiness of your life depends upon the quality of your thoughts.', authorZh: '马可·奥勒留', authorEn: 'Marcus Aurelius' },
-  { zh: '最好的报复，就是不成为伤害你的人。', en: 'The best revenge is not to be like your enemy.', authorZh: '马可·奥勒留', authorEn: 'Marcus Aurelius' },
-  { zh: '先决定你想成为什么样的人，然后去做该做的事。', en: 'First say to yourself what you would be; then do what you have to do.', authorZh: '爱比克泰德', authorEn: 'Epictetus' },
-  { zh: '不能主宰自己的人，不可能自由。', en: 'No man is free who is not master of himself.', authorZh: '爱比克泰德', authorEn: 'Epictetus' },
-  { zh: '学而时习之，不亦说乎。', en: 'To learn and practice what is learned—is that not a joy?', authorZh: '孔子', authorEn: 'Confucius' },
-  { zh: '温故而知新，可以为师矣。', en: 'Review the old and discover the new; then you may teach.', authorZh: '孔子', authorEn: 'Confucius' },
-  { zh: '学而不思则罔，思而不学则殆。', en: 'Learning without thought is labor lost; thought without learning is perilous.', authorZh: '孔子', authorEn: 'Confucius' },
-  { zh: '知之为知之，不知为不知，是知也。', en: 'To know what you know and what you do not know—that is knowledge.', authorZh: '孔子', authorEn: 'Confucius' },
-  { zh: '三人行，必有我师焉。', en: 'When walking with others, I can always learn from someone.', authorZh: '孔子', authorEn: 'Confucius' },
-  { zh: '见贤思齐焉，见不贤而内自省也。', en: 'See the worthy and strive to equal them; see faults and examine yourself.', authorZh: '孔子', authorEn: 'Confucius' },
-  { zh: '君子欲讷于言而敏于行。', en: 'The exemplary person is modest in speech and quick in action.', authorZh: '孔子', authorEn: 'Confucius' },
-  { zh: '工欲善其事，必先利其器。', en: 'To do good work, one must first sharpen the tools.', authorZh: '孔子', authorEn: 'Confucius' },
-  { zh: '欲速则不达。', en: 'Haste prevents achievement.', authorZh: '孔子', authorEn: 'Confucius' },
-  { zh: '人无远虑，必有近忧。', en: 'Without long-term thought, trouble will soon be near.', authorZh: '孔子', authorEn: 'Confucius' },
-  { zh: '逝者如斯夫，不舍昼夜。', en: 'Time passes like this river, never ceasing day or night.', authorZh: '孔子', authorEn: 'Confucius' },
-  { zh: '岁寒，然后知松柏之后凋也。', en: 'Only in winter do we know the pine and cypress remain steadfast.', authorZh: '孔子', authorEn: 'Confucius' },
-  { zh: '千里之行，始于足下。', en: 'A journey of a thousand miles begins beneath one’s feet.', authorZh: '老子', authorEn: 'Laozi' },
-  { zh: '合抱之木，生于毫末。', en: 'A tree too large to embrace grows from a tiny shoot.', authorZh: '老子', authorEn: 'Laozi' },
-  { zh: '知人者智，自知者明。', en: 'Knowing others is intelligence; knowing yourself is true clarity.', authorZh: '老子', authorEn: 'Laozi' },
-  { zh: '胜人者有力，自胜者强。', en: 'Mastering others takes strength; mastering yourself takes true power.', authorZh: '老子', authorEn: 'Laozi' },
-  { zh: '慎终如始，则无败事。', en: 'Attend to the end as carefully as the beginning, and the work will not fail.', authorZh: '老子', authorEn: 'Laozi' },
-] as const
 
 const nav: Array<[View, typeof CalendarDays]> = [
   ['month', CalendarDays], ['week', CalendarRange], ['day', CalendarDays],
@@ -206,6 +171,12 @@ export default function App() {
   const patchReminderPlan = (patch: Partial<typeof reminderPlan>) => setData(current => ({ ...current, weeklyPlans: { ...current.weeklyPlans, [reminderWeek]: { ...(current.weeklyPlans[reminderWeek] ?? reminderPlan), ...patch } } }))
   const updateBlock = (id: string, patch: Partial<TimeBlock>) =>
     setData(current => ({ ...current, timeBlocks: current.timeBlocks.map(block => block.id === id ? { ...block, ...patch, updatedAt: new Date().toISOString() } : block) }))
+  const updateDailyMemo = (date: string, memo: string) => setData(current => {
+    const dailyMemos = { ...current.dailyMemos }
+    if (memo) dailyMemos[date] = memo
+    else delete dailyMemos[date]
+    return { ...current, dailyMemos }
+  })
   const removeBlock = (id: string) => {
     if (!window.confirm(language === 'zh' ? '确定删除这个时间模块吗？' : 'Delete this time block?')) return
     setData(current => ({ ...current, timeBlocks: current.timeBlocks.filter(block => block.id !== id) }))
@@ -321,7 +292,7 @@ export default function App() {
 
       <div className="page">
         {reminder && <section className="reminder-banner"><div><b>{reminder === 'planning' ? (language === 'zh' ? 'Weekly Planning 还没有完成' : 'Weekly Planning is not complete') : (language === 'zh' ? '该做周中检查了' : 'Time for a Midweek Check')}</b><span>{language === 'zh' ? 'Floor 不会累计成债务；用几分钟重新确认本周投入。' : 'Floors never become debt. Take a moment to redirect this week.'}</span></div><div><button className="primary" onClick={() => { setSelectedDate(reminderWeek); setView('week'); setReviewRequested(reminder === 'planning') }}>{reminder === 'planning' ? (language === 'zh' ? '开始规划' : 'Start review') : (language === 'zh' ? '打开本周' : 'Open week')}</button><button className="secondary" onClick={() => patchReminderPlan(reminder === 'planning' ? { planningDismissedDate: iso(new Date()) } : { midweekDismissedDate: iso(new Date()) })}>{language === 'zh' ? '今天忽略' : 'Dismiss today'}</button></div></section>}
-        {view === 'day' && <DayView {...{ data, selectedDate, language, t, editMode, conflicts, updateBlock, removeBlock, setModal, addFromTemplate, removeTemplate }} onNewTemplate={() => setModuleModal({ open: true })} onEditTemplate={template => setModuleModal({ open: true, template })} />}
+        {view === 'day' && <DayView {...{ data, selectedDate, language, t, editMode, conflicts, updateBlock, updateDailyMemo, removeBlock, setModal, addFromTemplate, removeTemplate }} onNewTemplate={() => setModuleModal({ open: true })} onEditTemplate={template => setModuleModal({ open: true, template })} />}
         {view === 'now' && <NowView {...{ data, selectedDate, language, t, updateBlock }} />}
         {view === 'week' && <WeekView {...{ data, setData, selectedDate, language, t, conflicts, setSelectedDate, setView, reviewRequested }} onReviewOpened={() => setReviewRequested(false)} />}
         {view === 'month' && <MonthView {...{ data, selectedDate, language, conflicts, setSelectedDate, setView }} />}
@@ -346,8 +317,9 @@ type SharedProps = {
   t: typeof text.zh | typeof text.en
 }
 
-function DayView({ data, selectedDate, language, t, editMode, conflicts, updateBlock, removeBlock, setModal, addFromTemplate, onNewTemplate, onEditTemplate, removeTemplate }: SharedProps & {
+function DayView({ data, selectedDate, language, t, editMode, conflicts, updateBlock, updateDailyMemo, removeBlock, setModal, addFromTemplate, onNewTemplate, onEditTemplate, removeTemplate }: SharedProps & {
   editMode: boolean; conflicts: Set<string>; updateBlock: (id: string, patch: Partial<TimeBlock>) => void
+  updateDailyMemo: (date: string, memo: string) => void
   removeBlock: (id: string) => void; setModal: (value: { open: boolean; block?: TimeBlock }) => void
   addFromTemplate: (template: BlockTemplate, requestedStart?: string) => void
   onNewTemplate: () => void
@@ -358,12 +330,7 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
   const [dragPreview, setDragPreview] = useState<{ start: number; duration: number }>()
   const [draggingPayload, setDraggingPayload] = useState<{ type: 'template' | 'block'; id: string }>()
   const blocks = data.timeBlocks.filter(block => block.date === selectedDate).sort((a, b) => a.startTime.localeCompare(b.startTime))
-  const core = blocks.filter(block => data.categories.find(category => category.id === block.categoryId)?.countsTowardCompletion)
-  const completed = core.filter(block => block.status === 'completed').length
-  const corePlannedMinutes = core.reduce((sum, block) => sum + duration(block.startTime, block.endTime), 0)
-  const coreCompletedMinutes = core.reduce((sum, block) => sum + actualCompletedMinutes(block), 0)
-  const minutes = blocks.reduce((sum, block) => sum + duration(block.startTime, block.endTime), 0)
-  const quote = dailyQuotes[Math.abs(Number(selectedDate.replaceAll('-', ''))) % dailyQuotes.length]
+  const dailyMemo = data.dailyMemos[selectedDate] ?? ''
   const templates = data.blockTemplates.filter(template => !template.isHidden)
   const timelineStart = 0
   const timelineEnd = 24 * 60
@@ -399,11 +366,20 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
     setDragPreview(undefined)
   }
   return <>
-    <section className="hero-row">
-      <div className="daily-quote"><span className="eyebrow">{dateLabel(selectedDate, language)}</span><blockquote>“{language === 'zh' ? quote.zh : quote.en}”</blockquote><cite>— {language === 'zh' ? quote.authorZh : quote.authorEn}</cite></div>
-      <div className="summary-card"><div><span>{t.planned}</span><strong>{Math.floor(minutes / 60)}h {minutes % 60}m</strong></div><div><span>{t.progress}</span><strong>{corePlannedMinutes ? Math.round(coreCompletedMinutes / corePlannedMinutes * 100) : 0}%</strong></div></div>
+    <section className="daily-memo">
+      <header>
+        <div><span className="eyebrow">{dateLabel(selectedDate, language)}</span><h1>{language === 'zh' ? '今日备忘' : 'Daily memo'}</h1><p>{language === 'zh' ? '把待办、计划调整和一天结束后的想法放在同一个地方。' : 'Keep tasks, plan changes, and end-of-day thoughts in one place.'}</p></div>
+        <span className="memo-save-state"><Check />{language === 'zh' ? '自动保存' : 'Auto-saved'}</span>
+      </header>
+      <textarea
+        value={dailyMemo}
+        onChange={event => updateDailyMemo(selectedDate, event.target.value)}
+        maxLength={2000}
+        aria-label={language === 'zh' ? '今日备忘内容' : 'Daily memo content'}
+        placeholder={language === 'zh' ? '例如：\n• 今天一定要完成……\n• 计划需要调整……\n• 今天做得好 / 可以改进的是……' : 'For example:\n• I must finish…\n• I need to adjust…\n• What went well / what to improve…'}
+      />
+      <footer><div className="memo-kinds"><span>{language === 'zh' ? '待办' : 'Tasks'}</span><span>{language === 'zh' ? '计划调整' : 'Plan changes'}</span><span>{language === 'zh' ? '今日反思' : 'Reflection'}</span></div><small>{dailyMemo.length} / 2000</small></footer>
     </section>
-    <section className="focus-strip"><div><span className="eyebrow">{t.focus}</span><div className="focus-items">{blocks.filter(block => block.priority === 'high').slice(0, 3).map(block => <span key={block.id}><i style={{ background: block.color }} />{language === 'en' && block.titleEn ? block.titleEn : block.title}</span>)}</div></div><div className="progress-ring" style={{ '--progress': `${corePlannedMinutes ? coreCompletedMinutes / corePlannedMinutes * 360 : 0}deg` } as React.CSSProperties}><span>{completed}/{core.length}</span></div></section>
     <section className="section-head"><div><span className="eyebrow">{language === 'zh' ? '积木式日程' : 'Block schedule'}</span><h2>{language === 'zh' ? '拖放安排今天' : 'Build your day'}</h2></div>{conflicts.size > 0 && <span className="conflict-pill">{conflicts.size} {t.conflict}</span>}</section>
     <div className="day-builder">
       <aside className="module-dock">

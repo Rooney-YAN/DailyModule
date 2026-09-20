@@ -75,3 +75,18 @@
 .duration-direct select{width:64px!important;padding:7px 8px!important;background:var(--panel)!important;font-variant-numeric:tabular-nums}
 .duration-direct b{white-space:nowrap}
 @media(max-width:600px){.duration-direct{display:grid;grid-template-columns:1fr 1fr}.duration-direct>span{grid-column:1/-1;margin:0}.duration-direct label{display:grid!important;grid-template-columns:1fr auto!important}.duration-direct select{width:100%!important}}
+
+/* Daily memo demo: a quieter replacement for quote, progress, and focus panels. */
+.daily-memo{border:1px solid color-mix(in srgb,var(--accent) 18%,var(--line));border-radius:20px;padding:22px;background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 6%,var(--panel)),var(--panel) 62%);box-shadow:var(--shadow)}
+.daily-memo header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:16px}
+.daily-memo h1{margin:5px 0 6px;font-size:28px;letter-spacing:-.035em}
+.daily-memo header p{margin:0;color:var(--muted);font-size:12px}
+.memo-save-state{display:flex;align-items:center;gap:6px;padding:7px 9px;border-radius:99px;background:color-mix(in srgb,#36a174 11%,var(--panel));color:#2d8a66;font-size:10px;font-weight:700;white-space:nowrap}
+.memo-save-state svg{width:13px}
+.daily-memo textarea{display:block;width:100%;min-height:142px;resize:vertical;border:1px solid var(--line);border-radius:14px;padding:13px 15px;background:repeating-linear-gradient(to bottom,color-mix(in srgb,var(--soft) 72%,var(--panel)) 0,color-mix(in srgb,var(--soft) 72%,var(--panel)) 27px,color-mix(in srgb,var(--line) 75%,transparent) 28px);color:var(--text);font-size:13px;line-height:28px;outline:none}
+.daily-memo textarea:focus{border-color:color-mix(in srgb,var(--accent) 70%,var(--line));box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}
+.daily-memo textarea::placeholder{color:color-mix(in srgb,var(--muted) 72%,transparent)}
+.daily-memo footer{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px}
+.memo-kinds{display:flex;gap:6px;flex-wrap:wrap}.memo-kinds span{padding:5px 8px;border-radius:99px;background:var(--soft);color:var(--muted);font-size:9px;font-weight:700}
+.daily-memo footer small{color:var(--muted);font-size:9px;font-variant-numeric:tabular-nums}
+@media(max-width:600px){.daily-memo{padding:16px;border-radius:17px}.daily-memo header{display:grid;gap:10px}.memo-save-state{justify-self:start}.daily-memo h1{font-size:24px}.daily-memo textarea{min-height:170px}.daily-memo footer{align-items:flex-end}}
