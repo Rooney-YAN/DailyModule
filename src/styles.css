@@ -101,3 +101,17 @@
 @media(max-width:900px){.day-builder{height:auto}.module-dock{height:auto}.module-stack{max-height:none}.schedule-board{height:clamp(430px,64vh,560px)}}
 .editable-resource{display:flex;align-items:center;gap:8px;margin-top:9px;min-width:0}.editable-resource input[type="color"]{width:34px;height:34px;flex:none;padding:2px;border:1px solid var(--line);border-radius:7px;background:var(--panel)}.editable-resource input:not([type="color"]){min-width:0;flex:1}.editable-resource input[type="number"]{flex:0 0 78px;width:78px}.editable-resource small{color:var(--muted)}.editable-resource .resource-delete{width:31px;height:31px;flex:none;border:0;border-radius:8px;background:var(--soft);color:var(--muted);cursor:pointer}.editable-resource .resource-delete svg{width:15px}.resource-add .secondary{white-space:nowrap}.resource-add .secondary svg{width:15px}.category-editor{width:100%}
 .module-empty{font-size:12px;line-height:1.5;padding:8px 4px;margin:0}
+/* Give work names the full card width and grow them as text wraps. */
+.base-floor-settings{grid-template-columns:minmax(0,1fr);overflow:visible}
+.base-floor-settings .work-resource{display:grid;grid-template-columns:40px minmax(0,1fr) 112px 36px;align-items:start;gap:12px;width:100%;margin:0;padding:12px;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--soft) 40%,var(--panel))}
+.base-floor-settings .work-resource textarea{display:block;width:100%;min-width:0;min-height:50px;max-height:none;overflow:hidden;resize:none;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45;border:1px solid var(--line);border-radius:9px;padding:11px 12px;background:var(--soft);color:var(--text);font:inherit;font-size:14px}
+.base-floor-settings .work-resource textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+.base-floor-settings .work-resource input[type="color"]{width:40px;height:40px}
+.base-floor-settings .work-resource .protected-control{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 5px;min-width:0;color:var(--muted);font-size:11px}
+.base-floor-settings .work-resource .protected-control span{grid-column:1/-1}
+.base-floor-settings .work-resource .protected-control input{width:100%;min-width:0;padding:9px 7px;font-size:13px}
+.base-floor-settings .work-resource .protected-control small{align-self:center;margin:0}
+.base-floor-settings .work-resource .resource-delete{width:36px;height:36px}
+.base-floor-settings .resource-add{grid-template-columns:40px minmax(0,1fr) auto}
+.base-floor-settings .resource-add .secondary{min-height:40px}
+@media(max-width:600px){.base-floor-settings .work-resource{grid-template-columns:40px minmax(0,1fr) 36px}.base-floor-settings .work-resource .protected-control{grid-column:2;grid-row:2;max-width:150px}.base-floor-settings .work-resource .resource-delete{grid-column:3;grid-row:1}.base-floor-settings .resource-add .secondary{grid-column:2/-1;grid-row:2;justify-self:start}}
