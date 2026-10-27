@@ -1,8 +1,7 @@
 import { addDays, format, parseISO, startOfWeek } from 'date-fns'
 import type { Settings, TimeBlock, Track, WeeklyMode, WeeklyPlan } from '../types'
 
-export const WORK_TRACK_IDS = ['courses', 'ielts', 'urop', 'cuda', 'stocklens'] as const
-const workTrackSet = new Set<string>(WORK_TRACK_IDS)
+export const isWorkTrack = (track: Track) => track.countsTowardWeeklyCapacity ?? track.kind === 'goal'
 
 export const weekKey = (date: string | Date) => format(startOfWeek(typeof date === 'string' ? parseISO(date) : date, { weekStartsOn: 1 }), 'yyyy-MM-dd')
 
@@ -34,9 +33,9 @@ export const weekBlocks = (blocks: TimeBlock[], start: string) => {
 }
 
 export const isTrackedWorkBlock = (block: TimeBlock) =>
-  !!block.trackId && workTrackSet.has(block.trackId) && block.countsTowardWeeklyCapacity !== false && !(block.isFixed && block.trackId === 'courses') && block.source !== 'ics'
+  !!block.trackId && block.countsTowardWeeklyCapacity === true && block.source !== 'ics'
 
-export const baseFloor = (track: Track) => workTrackSet.has(track.id) ? Math.max(0, track.weeklyFloorMinutes) : 0
+export const baseFloor = (track: Track) => isWorkTrack(track) ? Math.max(0, track.weeklyFloorMinutes) : 0
 
 export const modeFloor = (track: Track, mode: WeeklyMode, profiles: Settings['modeFloorProfiles']) =>
   Math.round(baseFloor(track) * Math.max(0, profiles[mode]?.[track.id] ?? 1))
@@ -50,11 +49,11 @@ export const effectiveFloor = (track: Track, plan: WeeklyPlan, settings: Pick<Se
 export const weeklyCapacity = (plan: WeeklyPlan, baseCapacityMinutes: number) => Math.max(0, plan.capacityOverrideMinutes ?? baseCapacityMinutes)
 
 export const protectedTotal = (tracks: Track[], plan: WeeklyPlan, settings: Pick<Settings, 'modeFloorProfiles'>) =>
-  tracks.filter(track => workTrackSet.has(track.id)).reduce((sum, track) => sum + effectiveFloor(track, plan, settings), 0)
+  tracks.filter(isWorkTrack).reduce((sum, track) => sum + effectiveFloor(track, plan, settings), 0)
 
 export const baseFlex = (capacity: number, protectedMinutes: number) => Math.max(0, capacity - protectedMinutes)
 export const overcommitAmount = (planned: number, capacity: number) => Math.max(0, planned - capacity)
-export const allocatedFlex = (plan: WeeklyPlan) => Object.entries(plan.flexAllocations).filter(([id]) => workTrackSet.has(id)).reduce((sum, [, minutes]) => sum + Math.max(0, minutes || 0), 0)
+export const allocatedFlex = (plan: WeeklyPlan) => Object.entries(plan.flexAllocations).reduce((sum, [, minutes]) => sum + Math.max(0, minutes || 0), 0)
 export const unallocatedFlex = (availableFlex: number, allocated: number) => Math.max(0, availableFlex - allocated)
 export const weeklyBudget = (track: Track, plan: WeeklyPlan, settings: Pick<Settings, 'modeFloorProfiles'>) => effectiveFloor(track, plan, settings) + Math.max(0, plan.flexAllocations[track.id] ?? 0)
 
@@ -68,7 +67,7 @@ export const trackProgress = (track: Track, plan: WeeklyPlan, blocks: TimeBlock[
   const floor = effectiveFloor(track, plan, settings)
   const flex = Math.max(0, plan.flexAllocations[track.id] ?? 0)
   const budget = floor + flex
-  const status = completed >= budget ? 'done' : scheduled >= budget ? 'covered' : 'unscheduled'
+  const status = budget > 0 && completed >= budget ? 'done' : budget > 0 && scheduled >= budget ? 'covered' : 'unscheduled'
   return { completed, scheduled, floor, flex, budget, need: Math.max(0, budget - scheduled), status }
 }
 
@@ -79,7 +78,7 @@ export const canAllocateFlex = (plan: WeeklyPlan, availableFlex: number, trackId
 
 export const clampFlexAllocations = (plan: WeeklyPlan, availableFlex: number) => {
   let remaining = Math.max(0, availableFlex)
-  return WORK_TRACK_IDS.reduce<Record<string, number>>((allocations, trackId) => {
+  return Object.keys(plan.flexAllocations).reduce<Record<string, number>>((allocations, trackId) => {
     const kept = Math.min(Math.max(0, plan.flexAllocations[trackId] ?? 0), remaining)
     allocations[trackId] = kept
     remaining -= kept

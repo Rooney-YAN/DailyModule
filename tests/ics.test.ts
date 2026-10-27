@@ -80,7 +80,7 @@ test('HKUST recurrence remains in Hong Kong time, respects UTC UNTIL and dedupli
   assert.equal(comp2012.some(block => block.date === '2026-12-01'), false)
   assert.equal(comp2611.some(block => block.date === '2026-10-19'), false)
   assert.ok(comp2611.some(block => block.date === '2026-10-12'))
-  assert.ok(result.blocks.every(block => block.source === 'ics' && block.trackId === 'courses' && block.isFixed && !block.canMove && block.countsTowardWeeklyCapacity === false))
+  assert.ok(result.blocks.every(block => block.source === 'ics' && !block.trackId && block.isFixed && !block.canMove && block.countsTowardWeeklyCapacity === false))
   assert.deepEqual(uniqueIcsBlocks([], result.blocks), result.blocks)
   assert.deepEqual(uniqueIcsBlocks(result.blocks, result.blocks), [])
   assert.deepEqual(uniqueIcsBlocks([{ ...result.blocks[0], id: 'manual-course', source: undefined, sourceUid: undefined, recurrenceId: undefined }], [result.blocks[0]]), [result.blocks[0]])

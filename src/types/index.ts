@@ -136,7 +136,7 @@ export type Settings = {
 }
 
 export type PlannerData = {
-  schemaVersion: 5
+  schemaVersion: 6
   settings: Settings
   categories: Category[]
   blockTemplates: BlockTemplate[]

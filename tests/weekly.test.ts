@@ -70,7 +70,7 @@ test('Courses self-study counts toward Scheduled and Completed', () => {
 })
 
 test('Gym and personal blocks do not enter Capacity calculations', () => {
-  const gym = block('gym', 'health', 60, 'completed')
+  const gym = block('gym', 'health', 60, 'completed', { countsTowardWeeklyCapacity: false })
   assert.equal(plannedTrackedTotal([gym]), 0)
 })
 
@@ -146,4 +146,12 @@ test('partial completion is not double-counted with scheduled time', () => {
   assert.equal(progress.completed, 60)
   assert.equal(progress.scheduled - progress.completed, 120)
   assert.equal(progress.status, 'covered')
+})
+
+test('user-created work item participates in Protected and Flex', () => {
+  const project = { ...tracks[0], id: 'my-project', weeklyFloorMinutes: 90 }
+  const plan = { ...createWeeklyPlan('2026-09-14'), flexAllocations: { 'my-project': 30 } }
+  assert.equal(protectedTotal([project], plan, settings), 90)
+  assert.equal(allocatedFlex(plan), 30)
+  assert.equal(plannedTrackedTotal([block('task', 'my-project', 60)]), 60)
 })

@@ -9,7 +9,7 @@ import type { BlockTemplate, PlannerData, TimeBlock, Track, View } from './types
 import { createDefaultData, isPlannerData, loadData, migratePlannerData, resetData, saveData } from './lib/storage'
 import { dateLabel, duration, iso, monthDays, monthLabel, weekDays } from './lib/dates'
 import { parseIcsCalendar, uniqueIcsBlocks } from './lib/ics'
-import { createWeeklyPlan, dueReminder, weekKey, WORK_TRACK_IDS } from './lib/weekly'
+import { createWeeklyPlan, dueReminder, isWorkTrack, weekKey } from './lib/weekly'
 import { clearCloudSession, isCloudConfigured, loadCloudData, loadCloudSession, saveCloudData, signInToCloud, signUpForCloud, type CloudSession } from './lib/cloud-sync'
 import NewsPage from './components/NewsPage'
 import WeeklyDashboard from './components/WeeklyDashboard'
@@ -24,7 +24,7 @@ const text = {
     done: '完成', skip: '跳过', pending: '待完成', conflict: '发生冲突',
     export: '导出 JSON 备份', import: '导入 JSON 备份', reset: '重置为空白工作区',
     language: '界面语言', appearance: '外观', system: '跟随系统', light: '浅色', dark: '深色',
-    local: '默认保存在当前浏览器，也可启用跨设备同步', save: '已自动保存', templateHint: '模板只定义持续时间。拖入日视图的时间轴，再决定具体开始时间。',
+    local: '默认保存在当前浏览器，也可启用跨设备同步', save: '已自动保存', templateHint: '创建模块后拖到时间轴，松开即可安排。',
   },
   en: {
     month: 'Month', week: 'Week', day: 'Day', now: 'Now', news: 'Brief', templates: 'Templates', settings: 'Settings',
@@ -35,7 +35,7 @@ const text = {
     done: 'Done', skip: 'Skip', pending: 'Pending', conflict: 'Conflict',
     export: 'Export JSON backup', import: 'Import JSON backup', reset: 'Reset workspace',
     language: 'Language', appearance: 'Appearance', system: 'System', light: 'Light', dark: 'Dark',
-    local: 'Stored locally by default, with optional cross-device sync', save: 'Saved automatically', templateHint: 'Templates define duration only. Drag one onto the day timeline to choose its start time.',
+    local: 'Stored locally by default, with optional cross-device sync', save: 'Saved automatically', templateHint: 'Create a module, drag it onto the timeline, and release to schedule it.',
   },
 } as const
 
@@ -208,12 +208,13 @@ export default function App() {
     window.setTimeout(() => setNotice(''), 1800)
   }
   const saveTemplate = (value: { title: string; durationMinutes: number; categoryId: string; trackId?: string }) => {
-    const category = data.categories.find(item => item.id === value.categoryId) ?? data.categories[0]
+    const category = data.categories.find(item => item.id === value.categoryId)
+    const track = data.tracks.find(item => item.id === value.trackId)
     const template: BlockTemplate = {
       id: moduleModal.template?.id ?? crypto.randomUUID(), title: value.title, titleEn: moduleModal.template?.titleEn ?? value.title, durationMinutes: value.durationMinutes,
-      categoryId: category.id, color: category.color, icon: moduleModal.template?.icon ?? '◆', priority: moduleModal.template?.priority ?? 'medium', isFixed: moduleModal.template?.isFixed ?? false,
-      canMove: moduleModal.template?.canMove ?? true, canSplit: moduleModal.template?.canSplit ?? true, canBeOverridden: moduleModal.template?.canBeOverridden ?? true, isBuiltIn: moduleModal.template?.isBuiltIn ?? false, isHidden: false, trackId: value.trackId,
-      countsTowardWeeklyCapacity: !!value.trackId && WORK_TRACK_IDS.includes(value.trackId as typeof WORK_TRACK_IDS[number]),
+      categoryId: category?.id ?? '', color: category?.color ?? track?.color ?? '#6b7280', icon: moduleModal.template?.icon ?? '◆', priority: moduleModal.template?.priority ?? 'medium', isFixed: moduleModal.template?.isFixed ?? false,
+      canMove: moduleModal.template?.canMove ?? true, canSplit: moduleModal.template?.canSplit ?? true, canBeOverridden: moduleModal.template?.canBeOverridden ?? true, isBuiltIn: false, isHidden: false, trackId: value.trackId,
+      countsTowardWeeklyCapacity: !!track && isWorkTrack(track),
     }
     setData(current => ({ ...current, blockTemplates: current.blockTemplates.some(item => item.id === template.id) ? current.blockTemplates.map(item => item.id === template.id ? template : item) : [...current.blockTemplates, template] }))
     setModuleModal({ open: false })
@@ -265,7 +266,7 @@ export default function App() {
     }
   }
   const resetWorkspace = () => {
-    if (!window.confirm(language === 'zh' ? '这会清空当前日程、周计划、Deadline、Flex 分配和已导入课程表，并恢复默认设置与模块预设。确定继续吗？' : 'This clears the current schedule, weekly plans, deadlines, Flex allocations, and imported timetable, then restores default settings and module presets. Continue?')) return
+    if (!window.confirm(language === 'zh' ? '这会清空当前日程、周计划、Deadline、Flex 分配和已导入课程表，并恢复空白设置与模块库。确定继续吗？' : 'This clears the current schedule, weekly plans, deadlines, Flex allocations, and imported timetable, then restores an empty workspace. Continue?')) return
     resetData(); setData(createDefaultData())
   }
 
@@ -339,7 +340,7 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
   const ticks = Array.from({ length: (timelineEnd - timelineStart) / TIME_STEP + 1 }, (_, index) => timelineStart + index * TIME_STEP)
   const getMinutesFromPointer = (clientY: number, element: HTMLElement) => {
     const rect = element.getBoundingClientRect()
-    return snapMinutes(timelineStart + (clientY - rect.top) / hourHeight * 60)
+    return snapMinutes(Math.max(timelineStart, Math.min(timelineEnd, timelineStart + (clientY - rect.top) / hourHeight * 60)))
   }
   const dragData = (event: React.DragEvent) => {
     try { return JSON.parse(event.dataTransfer.getData('application/x-dailymodule')) as { type: 'template' | 'block'; id: string } } catch { return null }
@@ -384,7 +385,7 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
     <div className="day-builder">
       <aside className="module-dock">
         <div className="module-dock-head"><div><span className="eyebrow">{t.templates}</span><h3>{language === 'zh' ? '模块库' : 'Module library'}</h3></div><button className="module-add" onClick={onNewTemplate}><CirclePlus />{language === 'zh' ? '新建' : 'New'}</button></div>
-        <div className="module-stack">{templates.map(template => <article
+        <div className="module-stack">{templates.length === 0 && <p className="quiet-empty module-empty">{language === 'zh' ? '模块库是空的。点击“新建”添加自己的工作模块。' : 'Your library is empty. Click New to add a module.'}</p>}{templates.map(template => <article
           className={`module-piece ${template.icon ? '' : 'no-symbol'} ${armedTemplateId === template.id ? 'armed' : ''}`}
           style={{ '--module': template.color } as React.CSSProperties}
           draggable
@@ -400,33 +401,44 @@ function DayView({ data, selectedDate, language, t, editMode, conflicts, updateB
           key={template.id}
         ><span className="module-grip" aria-hidden="true">⠿</span>{template.icon && <span className="module-symbol">{template.icon}</span>}<span className="module-copy"><b>{language === 'en' ? template.titleEn : template.title}</b><small>{formatDuration(template.durationMinutes)}</small></span>{!template.isBuiltIn && <span className="module-tools"><button type="button" draggable={false} onClick={event => { event.stopPropagation(); onEditTemplate(template) }} aria-label={language === 'zh' ? '修改模块' : 'Edit module'}><Pencil /></button><button type="button" draggable={false} onClick={event => { event.stopPropagation(); removeTemplate(template) }} aria-label={language === 'zh' ? '删除模块' : 'Delete module'}><Trash2 /></button></span>}</article>)}</div>
       </aside>
-      <section className={`schedule-board ${armedTemplateId ? 'placing' : ''}`}>
-        <div className="schedule-instructions"><div><span>{editMode ? (language === 'zh' ? '拖动已安排模块可重新排期' : 'Drag scheduled blocks to reschedule') : (language === 'zh' ? '开启编辑模式后可移动已有模块' : 'Turn on edit mode to move scheduled blocks')}</span><small>{language === 'zh' ? '00:00–24:00 · 上下滚动查看全天' : '00:00–24:00 · Scroll to view the full day'}</small></div>{armedTemplateId && <b>{language === 'zh' ? '点击时间轴放置选中的模块' : 'Click the timeline to place the selected module'}</b>}</div>
+      <section className={`schedule-board ${armedTemplateId ? 'placing' : ''}`}
+        onDragOver={event => {
+          const payload = draggingPayload ?? dragData(event)
+          if (!payload) return
+          event.preventDefault()
+          event.dataTransfer.dropEffect = payload.type === 'template' ? 'copy' : 'move'
+          const canvas = event.currentTarget.querySelector<HTMLElement>('.schedule-canvas')
+          if (!canvas) return
+          const rect = event.currentTarget.getBoundingClientRect()
+          if (event.clientY > rect.bottom - 32) event.currentTarget.scrollTop += 20
+          else if (event.clientY < rect.top + 70) event.currentTarget.scrollTop -= 20
+          setDragPreview(previewFor(payload, getMinutesFromPointer(event.clientY, canvas)))
+        }}
+        onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragPreview(undefined) }}
+        onDrop={event => {
+          const payload = draggingPayload ?? dragData(event)
+          if (!payload) return
+          event.preventDefault()
+          const canvas = event.currentTarget.querySelector<HTMLElement>('.schedule-canvas')
+          if (!canvas) return
+          const desired = getMinutesFromPointer(event.clientY, canvas)
+          if (payload.type === 'template') {
+            const template = templates.find(item => item.id === payload.id)
+            if (template) placeTemplate(template, desired)
+          } else {
+            const block = blocks.find(item => item.id === payload.id)
+            if (block) moveBlock(block, desired)
+          }
+          setDraggingPayload(undefined)
+          setDragPreview(undefined)
+        }}>
+        <div className="schedule-instructions"><div><span>{editMode ? (language === 'zh' ? '拖动已安排模块可重新排期；模块库拖入后松开即安排' : 'Drag scheduled blocks to reschedule; release a library module to place it') : (language === 'zh' ? '从模块库拖入并松开即可安排；编辑模式可调整已有模块' : 'Drag a library module here and release; use edit mode to move scheduled blocks')}</span><small>{language === 'zh' ? '00:00–24:00 · 上下滚动查看全天' : '00:00–24:00 · Scroll to view the full day'}</small></div>{armedTemplateId && <b>{language === 'zh' ? '点击时间轴放置选中的模块' : 'Click the timeline to place the selected module'}</b>}</div>
         <div
           className="schedule-canvas"
           style={{ height: timelineHeight }}
           onClick={event => {
             const template = templates.find(item => item.id === armedTemplateId)
             if (template) placeTemplate(template, getMinutesFromPointer(event.clientY, event.currentTarget))
-          }}
-          onDragOver={event => {
-            event.preventDefault()
-            event.dataTransfer.dropEffect = 'move'
-            setDragPreview(previewFor(draggingPayload ?? dragData(event), getMinutesFromPointer(event.clientY, event.currentTarget)))
-          }}
-          onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragPreview(undefined) }}
-          onDrop={event => {
-            event.preventDefault()
-            const payload = draggingPayload ?? dragData(event)
-            const desired = getMinutesFromPointer(event.clientY, event.currentTarget)
-            if (payload?.type === 'template') {
-              const template = templates.find(item => item.id === payload.id)
-              if (template) placeTemplate(template, desired)
-            } else if (payload?.type === 'block') {
-              const block = blocks.find(item => item.id === payload.id)
-              if (block) moveBlock(block, desired)
-            }
-            setDraggingPayload(undefined)
           }}
         >
           {ticks.map(tick => <div className={`schedule-tick ${tick % 60 === 0 ? 'major' : tick % 30 === 0 ? 'half' : 'minor'}`} style={{ top: (tick - timelineStart) / 60 * hourHeight }} key={tick}><time>{timeFromMinutes(tick)}</time><span /></div>)}
@@ -536,13 +548,51 @@ function MonthView({ data, selectedDate, language, conflicts, setSelectedDate, s
 function SettingsView({ data, setData, t, exportData, importRef, icsRef, resetWorkspace, cloudSession, cloudStatus, onCloudSession, onCloudLogout }: { data: PlannerData; setData: React.Dispatch<React.SetStateAction<PlannerData>>; t: SharedProps['t']; exportData: () => void; importRef: React.RefObject<HTMLInputElement | null>; icsRef: React.RefObject<HTMLInputElement | null>; resetWorkspace: () => void; cloudSession?: CloudSession; cloudStatus: 'idle' | 'syncing' | 'synced' | 'error'; onCloudSession: (session: CloudSession) => void; onCloudLogout: () => void }) {
   const patch = (settingsPatch: Partial<PlannerData['settings']>) => setData(current => ({ ...current, settings: { ...current.settings, ...settingsPatch } }))
   const patchBaseFloor = (trackId: string, hours: number) => setData(current => ({ ...current, tracks: current.tracks.map(track => track.id === trackId ? { ...track, weeklyFloorMinutes: Math.max(0, hours * 60), weeklyTargetMinutes: Math.max(0, hours * 60) } : track) }))
+  const [newTrackName, setNewTrackName] = useState('')
+  const [newTrackColor, setNewTrackColor] = useState('#64748b')
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [newCategoryColor, setNewCategoryColor] = useState('#64748b')
+  const addTrack = () => {
+    const name = newTrackName.trim()
+    if (!name) return
+    setData(current => ({ ...current, tracks: [...current.tracks, { id: crypto.randomUUID(), name, nameEn: name,
+      color: newTrackColor, kind: 'goal', weeklyFloorMinutes: 0, weeklyTargetMinutes: 0,
+      important: false, urgent: false, countsTowardWeeklyCapacity: true }] }))
+    setNewTrackName('')
+  }
+  const removeTrack = (id: string) => {
+    if (!window.confirm(data.settings.language === 'zh' ? '删除这个工作项？已安排的模块会保留，但不再计入周预算。' : 'Delete this work item? Scheduled blocks remain, but no longer count toward the weekly budget.')) return
+    setData(current => ({ ...current,
+      tracks: current.tracks.filter(track => track.id !== id),
+      blockTemplates: current.blockTemplates.map(template => template.trackId === id ? { ...template, trackId: undefined, countsTowardWeeklyCapacity: false } : template),
+      timeBlocks: current.timeBlocks.map(block => block.trackId === id ? { ...block, trackId: undefined, countsTowardWeeklyCapacity: false } : block),
+      weeklyPlans: Object.fromEntries(Object.entries(current.weeklyPlans).map(([key, plan]) => {
+        const floorOverrides = { ...plan.floorOverrides }; delete floorOverrides[id]
+        const flexAllocations = { ...plan.flexAllocations }; delete flexAllocations[id]
+        return [key, { ...plan, floorOverrides, flexAllocations, primaryFocusTrackId: plan.primaryFocusTrackId === id ? undefined : plan.primaryFocusTrackId }]
+      })),
+    }))
+  }
+  const addCategory = () => {
+    const name = newCategoryName.trim()
+    if (!name) return
+    setData(current => ({ ...current, categories: [...current.categories, { id: crypto.randomUUID(), name,
+      nameEn: name, color: newCategoryColor, countsTowardCompletion: true }] }))
+    setNewCategoryName('')
+  }
+  const removeCategory = (id: string) => {
+    if (!window.confirm(data.settings.language === 'zh' ? '删除这个分类？已有模块会变为未分类。' : 'Delete this category? Existing modules become uncategorized.')) return
+    setData(current => ({ ...current, categories: current.categories.filter(category => category.id !== id),
+      blockTemplates: current.blockTemplates.map(template => template.categoryId === id ? { ...template, categoryId: '' } : template),
+      timeBlocks: current.timeBlocks.map(block => block.categoryId === id ? { ...block, categoryId: '' } : block) }))
+  }
   const language = data.settings.language
   const weekdayLabels = language === 'zh' ? ['周日','周一','周二','周三','周四','周五','周六'] : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-  const workTracks = WORK_TRACK_IDS.map(id => data.tracks.find(track => track.id === id)).filter((track): track is NonNullable<typeof track> => !!track)
+  const workTracks = data.tracks.filter(isWorkTrack)
   const importedCourseCount = data.timeBlocks.filter(block => block.source === 'ics').length
   const latestImport = data.calendarImports.at(-1)
   const clearImportedCourses = () => {
-    if (!window.confirm(language === 'zh' ? '确定清除全部已导入课程吗？自己创建的 Courses 模块不会被删除。' : 'Clear all imported courses? Courses blocks you created yourself will be kept.')) return
+    if (!window.confirm(language === 'zh' ? '确定清除全部已导入课程吗？你自己创建的模块不会被删除。' : 'Clear all imported courses? Your own modules will be kept.')) return
     setData(current => ({ ...current, timeBlocks: current.timeBlocks.filter(block => block.source !== 'ics'), calendarImports: [] }))
   }
   return <div className="settings-page">
@@ -551,7 +601,8 @@ function SettingsView({ data, setData, t, exportData, importRef, icsRef, resetWo
     <section className="settings-card"><div><Sun /><span><b>{t.appearance}</b><small>{t[data.settings.theme]}</small></span></div><div className="segmented">{(['system','light','dark'] as const).map(theme => <button className={data.settings.theme === theme ? 'active' : ''} onClick={() => patch({ theme })} key={theme}>{t[theme]}</button>)}</div></section>
     <CloudSyncCard language={language} session={cloudSession} status={cloudStatus} onSession={onCloudSession} onLogout={onCloudLogout} />
     <section className="settings-card settings-column"><div><CalendarRange /><span><b>{language === 'zh' ? 'ICS 课程表' : 'ICS timetable'}</b><small>{language === 'zh' ? '本地解析；支持 Weekly、UNTIL、EXDATE 与香港时区' : 'Parsed locally; supports Weekly, UNTIL, EXDATE and Hong Kong time'}</small></span></div><div className="settings-inline"><button className="secondary" onClick={() => icsRef.current?.click()}><FileUp />{language === 'zh' ? '导入 .ics' : 'Import .ics'}</button>{latestImport ? <small>{latestImport.fileName} · {importedCourseCount} {language === 'zh' ? '个课程事件' : 'course events'}</small> : <small>{language === 'zh' ? '尚未导入' : 'No imports yet'}</small>}{importedCourseCount > 0 && <button className="danger-button" onClick={clearImportedCourses}><Trash2 />{language === 'zh' ? '清除已导入课程' : 'Clear imported courses'}</button>}</div></section>
-    <section className="settings-card settings-column"><div><Gauge /><span><b>{language === 'zh' ? '每周工作资源' : 'Weekly work resources'}</b><small>{language === 'zh' ? '长期 Base Floors；系统会按本周模式自动计算保护预算与 Flex。' : 'Long-term Base Floors; this week’s mode calculates protected budget and Flex.'}</small></span></div><label className="capacity-setting"><span>{language === 'zh' ? 'Base Weekly Capacity' : 'Base Weekly Capacity'}</span><input type="number" min="0" step="0.5" value={data.settings.baseWeeklyCapacityMinutes / 60} onChange={event => patch({ baseWeeklyCapacityMinutes: Math.max(0, Number(event.target.value) * 60) })} /><small>h</small></label><div className="base-floor-settings"><b>Base Floors</b>{workTracks.map(track => <label key={track.id}><span>{language === 'zh' ? track.name : track.nameEn}</span><input type="number" min="0" step="0.5" value={track.weeklyFloorMinutes / 60} onChange={event => patchBaseFloor(track.id, Number(event.target.value))} /><small>h</small></label>)}</div><details className="profile-settings"><summary>{language === 'zh' ? '编辑模式乘数' : 'Edit mode multipliers'}</summary><div className="profile-matrix"><span />{(['normal','busy','crunch','deload'] as const).map(mode => <b key={mode}>{mode}</b>)}{workTracks.map(track => <div className="profile-row" key={track.id}><strong>{language === 'zh' ? track.name : track.nameEn}<small>{track.weeklyFloorMinutes / 60}h base</small></strong>{(['normal','busy','crunch','deload'] as const).map(mode => <label key={mode}><input type="number" min="0" max="2" step="0.1" value={data.settings.modeFloorProfiles[mode][track.id] ?? 1} onChange={event => patch({ modeFloorProfiles: { ...data.settings.modeFloorProfiles, [mode]: { ...data.settings.modeFloorProfiles[mode], [track.id]: Math.max(0, Number(event.target.value)) } } })} /><span>×</span></label>)}</div>)}</div></details></section>
+    <section className="settings-card settings-column"><div><Gauge /><span><b>{language === 'zh' ? '每周工作资源' : 'Weekly work resources'}</b><small>{language === 'zh' ? '长期 Base Floors；系统会按本周模式自动计算保护预算与 Flex。' : 'Long-term Base Floors; this week’s mode calculates protected budget and Flex.'}</small></span></div><label className="capacity-setting"><span>{language === 'zh' ? 'Base Weekly Capacity' : 'Base Weekly Capacity'}</span><input type="number" min="0" step="0.5" value={data.settings.baseWeeklyCapacityMinutes ? data.settings.baseWeeklyCapacityMinutes / 60 : ''} onChange={event => patch({ baseWeeklyCapacityMinutes: Math.max(0, Number(event.target.value) * 60) })} /><small>h</small></label><div className="base-floor-settings"><b>{language === 'zh' ? '工作内容与 Protected' : 'Work items & Protected'}</b>{workTracks.length === 0 && <p className="quiet-empty">{language === 'zh' ? '还没有工作项。添加后可设置保护时间并分配 Flex。' : 'No work items yet. Add one to set protected time and allocate Flex.'}</p>}{workTracks.map(track => <div className="editable-resource" key={track.id}><input type="color" aria-label={language === 'zh' ? '工作项颜色' : 'Work item color'} value={track.color} onChange={event => setData(current => ({ ...current, tracks: current.tracks.map(item => item.id === track.id ? { ...item, color: event.target.value } : item) }))} /><input aria-label={language === 'zh' ? '工作项名称' : 'Work item name'} value={language === 'zh' ? track.name : track.nameEn} onChange={event => setData(current => ({ ...current, tracks: current.tracks.map(item => item.id === track.id ? { ...item, name: event.target.value, nameEn: event.target.value } : item) }))} /><input aria-label="Protected hours" type="number" min="0" step="0.5" value={track.weeklyFloorMinutes / 60} onChange={event => patchBaseFloor(track.id, Number(event.target.value))} /><small>h</small><button type="button" className="resource-delete" onClick={() => removeTrack(track.id)} aria-label={language === 'zh' ? '删除工作项' : 'Delete work item'}><Trash2 /></button></div>)}<div className="editable-resource resource-add"><input type="color" aria-label={language === 'zh' ? '新工作项颜色' : 'New work item color'} value={newTrackColor} onChange={event => setNewTrackColor(event.target.value)} /><input value={newTrackName} onChange={event => setNewTrackName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') addTrack() }} placeholder={language === 'zh' ? '新工作项名称' : 'New work item'} /><button type="button" className="secondary" onClick={addTrack}><CirclePlus />{language === 'zh' ? '添加' : 'Add'}</button></div></div><details className="profile-settings"><summary>{language === 'zh' ? '编辑模式乘数' : 'Edit mode multipliers'}</summary><div className="profile-matrix"><span />{(['normal','busy','crunch','deload'] as const).map(mode => <b key={mode}>{mode}</b>)}{workTracks.map(track => <div className="profile-row" key={track.id}><strong>{language === 'zh' ? track.name : track.nameEn}<small>{track.weeklyFloorMinutes / 60}h base</small></strong>{(['normal','busy','crunch','deload'] as const).map(mode => <label key={mode}><input type="number" min="0" max="2" step="0.1" value={data.settings.modeFloorProfiles[mode][track.id] ?? 1} onChange={event => patch({ modeFloorProfiles: { ...data.settings.modeFloorProfiles, [mode]: { ...data.settings.modeFloorProfiles[mode], [track.id]: Math.max(0, Number(event.target.value)) } } })} /><span>×</span></label>)}</div>)}</div></details></section>
+    <section className="settings-card settings-column"><div><Layers3 /><span><b>{language === 'zh' ? '自定义分类' : 'Categories'}</b><small>{language === 'zh' ? '分类用于给模块上色，可留空。' : 'Categories color your modules and are optional.'}</small></span></div><div className="category-editor">{data.categories.map(category => <div className="editable-resource" key={category.id}><input type="color" aria-label={language === 'zh' ? '分类颜色' : 'Category color'} value={category.color} onChange={event => setData(current => ({ ...current, categories: current.categories.map(item => item.id === category.id ? { ...item, color: event.target.value } : item) }))} /><input aria-label={language === 'zh' ? '分类名称' : 'Category name'} value={language === 'zh' ? category.name : category.nameEn} onChange={event => setData(current => ({ ...current, categories: current.categories.map(item => item.id === category.id ? { ...item, name: event.target.value, nameEn: event.target.value } : item) }))} /><button type="button" className="resource-delete" onClick={() => removeCategory(category.id)} aria-label={language === 'zh' ? '删除分类' : 'Delete category'}><Trash2 /></button></div>)}<div className="editable-resource resource-add"><input type="color" aria-label={language === 'zh' ? '新分类颜色' : 'New category color'} value={newCategoryColor} onChange={event => setNewCategoryColor(event.target.value)} /><input value={newCategoryName} onChange={event => setNewCategoryName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') addCategory() }} placeholder={language === 'zh' ? '新分类名称' : 'New category'} /><button type="button" className="secondary" onClick={addCategory}><CirclePlus />{language === 'zh' ? '添加' : 'Add'}</button></div></div></section>
     <section className="settings-card settings-column"><div><Clock3 /><span><b>{language === 'zh' ? '站内提醒' : 'In-app reminders'}</b><small>{language === 'zh' ? '在设定时间后的首次打开时显示' : 'Shown on the first visit after the scheduled time'}</small></span></div><div className="reminder-settings"><label><input type="checkbox" checked={data.settings.reminders.planningEnabled} onChange={event => patch({ reminders: { ...data.settings.reminders, planningEnabled: event.target.checked } })} /> Weekly Planning</label><select value={data.settings.reminders.planningWeekday} onChange={event => patch({ reminders: { ...data.settings.reminders, planningWeekday: Number(event.target.value) } })}>{weekdayLabels.map((label, index) => <option value={index} key={label}>{label}</option>)}</select><input type="number" min="0" max="23" value={data.settings.reminders.planningHour} onChange={event => patch({ reminders: { ...data.settings.reminders, planningHour: Math.max(0, Math.min(23, Number(event.target.value))) } })} /><span>:00</span><label><input type="checkbox" checked={data.settings.reminders.midweekEnabled} onChange={event => patch({ reminders: { ...data.settings.reminders, midweekEnabled: event.target.checked } })} /> Midweek Check</label><select value={data.settings.reminders.midweekWeekday} onChange={event => patch({ reminders: { ...data.settings.reminders, midweekWeekday: Number(event.target.value) } })}>{weekdayLabels.map((label, index) => <option value={index} key={label}>{label}</option>)}</select><input type="number" min="0" max="23" value={data.settings.reminders.midweekHour} onChange={event => patch({ reminders: { ...data.settings.reminders, midweekHour: Math.max(0, Math.min(23, Number(event.target.value))) } })} /><span>:00</span></div></section>
     <section className="settings-card data-actions"><div><Download /><span><b>{data.settings.language === 'zh' ? '数据与备份' : 'Data & backup'}</b><small>JSON</small></span></div><div><button className="secondary" onClick={exportData}><Download />{t.export}</button><button className="secondary" onClick={() => importRef.current?.click()}><FileUp />{t.import}</button><button className="danger-button" onClick={resetWorkspace}><RotateCcw />{t.reset}</button></div></section>
   </div>
@@ -689,10 +740,10 @@ function ModuleModal({ open, template, data, language, onClose, onSave }: {
 }) {
   const [title, setTitle] = useState('')
   const [durationMinutes, setDurationMinutes] = useState(45)
-  const [categoryId, setCategoryId] = useState('study')
+  const [categoryId, setCategoryId] = useState('')
   const [trackId, setTrackId] = useState<string>()
   useEffect(() => {
-    if (open) { setTitle(template?.title ?? ''); setDurationMinutes(template?.durationMinutes ?? 45); setCategoryId(template?.categoryId ?? 'study'); setTrackId(template?.trackId) }
+    if (open) { setTitle(template?.title ?? ''); setDurationMinutes(template?.durationMinutes ?? 45); setCategoryId(template?.categoryId ?? ''); setTrackId(template?.trackId) }
   }, [open, template])
   if (!open) return null
   return <div className="modal-backdrop" onMouseDown={event => event.currentTarget === event.target && onClose()}>
@@ -700,7 +751,7 @@ function ModuleModal({ open, template, data, language, onClose, onSave }: {
       <header><div><span className="eyebrow">{language === 'zh' ? '模块库' : 'Module library'}</span><h2>{template ? (language === 'zh' ? '修改事项模块' : 'Edit task module') : (language === 'zh' ? '创建一个事项模块' : 'Create a task module')}</h2></div><button type="button" className="ghost icon" onClick={onClose}><X /></button></header>
       <p className="module-modal-intro">{language === 'zh' ? '这里只定义事项和持续时间。具体日期与开始时间在拖入时间轴时决定。' : 'Define the task and its duration here. Choose the date and start time when you place it on the timeline.'}</p>
       <label>{language === 'zh' ? '模块名称' : 'Module name'}<input autoFocus value={title} onChange={event => setTitle(event.target.value)} placeholder={language === 'zh' ? '例如：阅读、健身、复习' : 'e.g. Reading, workout, review'} required /></label>
-      <div className="form-row"><label>{language === 'zh' ? '持续时间' : 'Duration'}<select value={durationMinutes} onChange={event => setDurationMinutes(Number(event.target.value))}>{[15, 30, 45, 60, 90, 120, 180, 240].map(value => <option value={value} key={value}>{formatDuration(value)}</option>)}</select></label><label>{language === 'zh' ? '分类' : 'Category'}<select value={categoryId} onChange={event => setCategoryId(event.target.value)}>{data.categories.map(category => <option value={category.id} key={category.id}>{language === 'zh' ? category.name : category.nameEn}</option>)}</select></label></div>
+      <div className="form-row"><label>{language === 'zh' ? '持续时间' : 'Duration'}<select value={durationMinutes} onChange={event => setDurationMinutes(Number(event.target.value))}>{[15, 30, 45, 60, 90, 120, 180, 240].map(value => <option value={value} key={value}>{formatDuration(value)}</option>)}</select></label><label>{language === 'zh' ? '分类' : 'Category'}<select value={categoryId} onChange={event => setCategoryId(event.target.value)}><option value="">{language === 'zh' ? '未分类' : 'Uncategorized'}</option>{data.categories.map(category => <option value={category.id} key={category.id}>{language === 'zh' ? category.name : category.nameEn}</option>)}</select></label></div>
       <label>Track<select value={trackId ?? ''} onChange={event => setTrackId(event.target.value || undefined)}><option value="">{language === 'zh' ? '不计入周目标' : 'Not counted toward a weekly goal'}</option>{data.tracks.map(track => <option value={track.id} key={track.id}>{language === 'zh' ? track.name : track.nameEn}</option>)}</select></label>
       <footer><button type="button" className="secondary" onClick={onClose}>{language === 'zh' ? '取消' : 'Cancel'}</button><button className="primary" type="submit">{template ? <Pencil /> : <CirclePlus />}{template ? (language === 'zh' ? '保存修改' : 'Save changes') : (language === 'zh' ? '加入模块库' : 'Add to library')}</button></footer>
     </form>
@@ -709,23 +760,23 @@ function ModuleModal({ open, template, data, language, onClose, onSave }: {
 
 function BlockModal({ open, block, date, data, language, onClose, onSave }: { open: boolean; block?: TimeBlock; date: string; data: PlannerData; language: 'zh' | 'en'; onClose: () => void; onSave: (block: TimeBlock) => void }) {
   const [form, setForm] = useState<Partial<TimeBlock>>({})
-  useEffect(() => setForm(block ?? { date, startTime: '09:00', endTime: '10:00', categoryId: 'study', priority: 'medium', status: 'pending', completedMinutes: 0, isFixed: false, canMove: true, canSplit: true, canBeOverridden: true }), [open, block, date])
+  useEffect(() => setForm(block ?? { date, startTime: '09:00', endTime: '10:00', categoryId: '', priority: 'medium', status: 'pending', completedMinutes: 0, isFixed: false, canMove: true, canSplit: true, canBeOverridden: true }), [open, block, date])
   if (!open) return null
-  const category = data.categories.find(item => item.id === form.categoryId) ?? data.categories[0]
+  const category = data.categories.find(item => item.id === form.categoryId)
   const submit = (event: React.FormEvent) => {
     event.preventDefault()
     if (!form.title?.trim() || !form.date || !form.startTime || !form.endTime || form.endTime <= form.startTime) return
     const timestamp = new Date().toISOString()
     const planned = duration(form.startTime, form.endTime)
     const status = form.status ?? 'pending'
-    const tracked = !!form.trackId && WORK_TRACK_IDS.includes(form.trackId as typeof WORK_TRACK_IDS[number]) && !(form.trackId === 'courses' && (!!form.isFixed || block?.source === 'ics'))
-    onSave({ id: block?.id ?? crypto.randomUUID(), title: form.title.trim(), titleEn: form.titleEn?.trim(), date: form.date, startTime: form.startTime, endTime: form.endTime, categoryId: category.id, color: category.color, priority: form.priority ?? 'medium', note: form.note?.trim(), status, completedMinutes: status === 'completed' ? Math.max(0, form.completedMinutes ?? planned) : status === 'partial' ? Math.max(0, Math.min(planned, form.completedMinutes ?? 0)) : 0, isFixed: !!form.isFixed, canMove: form.canMove !== false, canSplit: form.canSplit !== false, canBeOverridden: form.canBeOverridden !== false, templateId: block?.templateId, trackId: form.trackId, source: block?.source, sourceUid: block?.sourceUid, recurrenceId: block?.recurrenceId, countsTowardWeeklyCapacity: block?.source === 'ics' ? false : tracked, createdAt: block?.createdAt ?? timestamp, updatedAt: timestamp })
+    const tracked = !!data.tracks.find(track => track.id === form.trackId && isWorkTrack(track)) && block?.source !== 'ics'
+    onSave({ id: block?.id ?? crypto.randomUUID(), title: form.title.trim(), titleEn: form.titleEn?.trim(), date: form.date, startTime: form.startTime, endTime: form.endTime, categoryId: category?.id ?? '', color: category?.color ?? data.tracks.find(track => track.id === form.trackId)?.color ?? '#6b7280', priority: form.priority ?? 'medium', note: form.note?.trim(), status, completedMinutes: status === 'completed' ? Math.max(0, form.completedMinutes ?? planned) : status === 'partial' ? Math.max(0, Math.min(planned, form.completedMinutes ?? 0)) : 0, isFixed: !!form.isFixed, canMove: form.canMove !== false, canSplit: form.canSplit !== false, canBeOverridden: form.canBeOverridden !== false, templateId: block?.templateId, trackId: form.trackId, source: block?.source, sourceUid: block?.sourceUid, recurrenceId: block?.recurrenceId, countsTowardWeeklyCapacity: block?.source === 'ics' ? false : tracked, createdAt: block?.createdAt ?? timestamp, updatedAt: timestamp })
   }
   const patch = (value: Partial<TimeBlock>) => setForm(current => ({ ...current, ...value }))
   return <div className="modal-backdrop" onMouseDown={event => event.currentTarget === event.target && onClose()}>
     <form className="modal" onSubmit={submit}><header><div><span className="eyebrow">{block ? (language === 'zh' ? '编辑时间模块' : 'Edit time block') : (language === 'zh' ? '新建时间模块' : 'New time block')}</span><h2>{language === 'zh' ? '安排一段专注时间' : 'Plan a focused block'}</h2></div><button type="button" className="ghost icon" onClick={onClose}><X /></button></header>
       <label>{language === 'zh' ? 'Label（具体事项）' : 'Label (specific task)'}<input autoFocus value={form.title ?? ''} onChange={event => patch({ title: event.target.value })} placeholder={language === 'zh' ? '例如：COMP2012 Assignment' : 'e.g. COMP2012 Assignment'} required /></label>
-      <div className="form-row"><label>{language === 'zh' ? '日期' : 'Date'}<input type="date" value={form.date ?? date} onChange={event => patch({ date: event.target.value })} /></label><label>{language === 'zh' ? '分类' : 'Category'}<select value={form.categoryId} onChange={event => patch({ categoryId: event.target.value })}>{data.categories.map(item => <option key={item.id} value={item.id}>{language === 'en' ? item.nameEn : item.name}</option>)}</select></label></div>
+      <div className="form-row"><label>{language === 'zh' ? '日期' : 'Date'}<input type="date" value={form.date ?? date} onChange={event => patch({ date: event.target.value })} /></label><label>{language === 'zh' ? '分类' : 'Category'}<select value={form.categoryId ?? ''} onChange={event => patch({ categoryId: event.target.value })}><option value="">{language === 'zh' ? '未分类' : 'Uncategorized'}</option>{data.categories.map(item => <option key={item.id} value={item.id}>{language === 'en' ? item.nameEn : item.name}</option>)}</select></label></div>
       <TimeRangePicker startTime={form.startTime ?? '09:00'} endTime={form.endTime ?? '10:00'} language={language} onChange={(startTime, endTime) => patch({ startTime, endTime })} />
       <label>{language === 'zh' ? '备注' : 'Note'}<textarea rows={3} value={form.note ?? ''} onChange={event => patch({ note: event.target.value })} /></label>
       <div className="form-row"><label>Track<select value={form.trackId ?? ''} onChange={event => patch({ trackId: event.target.value || undefined })}><option value="">—</option>{data.tracks.map(track => <option value={track.id} key={track.id}>{language === 'zh' ? track.name : track.nameEn}</option>)}</select></label><label>{language === 'zh' ? '优先级' : 'Priority'}<select value={form.priority} onChange={event => patch({ priority: event.target.value as TimeBlock['priority'] })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label></div>

@@ -97,8 +97,8 @@ export function parseIcsCalendar(source: string): IcsImportResult {
     const note = [description, location ? `Location: ${location}` : ''].filter(Boolean).join('\n')
     const templateId = `ics-template-${hash(`${summary}|${blockDuration}`)}`
     if (!templates.has(templateId)) templates.set(templateId, {
-      id: templateId, title: summary, titleEn: summary, durationMinutes: blockDuration, categoryId: 'study', color: '#5876de', icon: '',
-      priority: 'medium', isFixed: true, canMove: false, canSplit: false, canBeOverridden: false, isBuiltIn: false, isHidden: false, trackId: 'courses', countsTowardWeeklyCapacity: false,
+      id: templateId, title: summary, titleEn: summary, durationMinutes: blockDuration, categoryId: '', color: '#6b7280', icon: '',
+      priority: 'medium', isFixed: true, canMove: false, canSplit: false, canBeOverridden: false, isBuiltIn: false, isHidden: false, trackId: undefined, countsTowardWeeklyCapacity: false,
     })
 
     const excluded = new Set(all('EXDATE').flatMap(property => property.value.split(',')).map(value => parseDateTime(value)?.date).filter((value): value is string => !!value))
@@ -132,8 +132,8 @@ export function parseIcsCalendar(source: string): IcsImportResult {
       const block: TimeBlock = {
         id: `ics-${hash(uid)}-${date}-${start.time.replace(':', '')}`,
         title: summary, titleEn: summary, date, startTime: start.time, endTime: `${pad(Math.floor(endMinutes / 60))}:${pad(endMinutes % 60)}`,
-        categoryId: 'study', color: '#5876de', priority: 'medium', note, status: 'pending', isFixed: true,
-        canMove: false, canSplit: false, canBeOverridden: false, templateId, trackId: 'courses', source: 'ics', sourceUid: uid,
+        categoryId: '', color: '#6b7280', priority: 'medium', note, status: 'pending', isFixed: true,
+        canMove: false, canSplit: false, canBeOverridden: false, templateId, trackId: undefined, source: 'ics', sourceUid: uid,
         recurrenceId, countsTowardWeeklyCapacity: false, createdAt: now, updatedAt: now,
       }
       const existing = occurrences.get(signature)
